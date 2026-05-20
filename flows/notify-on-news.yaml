@@ -1,0 +1,14 @@
+name: notify-on-news
+steps:
+  - id: fetch
+    node: rss
+    input:
+      url: "https://hnrss.org/frontpage"
+      limit: 3
+
+  - id: summarize
+    node: llm_groq
+    input:
+      prompt: "Here are today's top Hacker News stories. Summarize in 3 bullet points:\n\n${fetch.items}"
+      system: "You are a concise technical news summarizer. Be direct. Each bullet max 2 sentences."
+      max_tokens: 300

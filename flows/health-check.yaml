@@ -1,0 +1,19 @@
+name: health-check
+steps:
+  - id: check_github
+    node: http_get
+    input:
+      url: "https://github.com"
+    timeout: 10s
+
+  - id: check_hn
+    node: http_get
+    input:
+      url: "https://news.ycombinator.com"
+    timeout: 10s
+
+  - id: report
+    node: fs_write
+    input:
+      path: "/tmp/health-check.txt"
+      content: "Health check completed"

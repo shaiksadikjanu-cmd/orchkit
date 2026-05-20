@@ -1,0 +1,15 @@
+name: crypto-report
+steps:
+  - id: fetch
+    node: http_get
+    input:
+      url: "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd"
+    timeout: 15s
+
+  - id: parse
+    node: json_parse
+
+  - id: save
+    node: fs_write
+    input:
+      path: "/tmp/crypto-prices.json"

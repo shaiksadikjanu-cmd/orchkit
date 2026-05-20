@@ -1,0 +1,12 @@
+name: fetch-and-parse
+steps:
+  - id: fetch
+    node: http_get
+    input:
+      url: "https://httpbin.org/json"
+    timeout: 30s
+
+  - id: parse
+    node: json_parse
+    input:
+      field: "slideshow"

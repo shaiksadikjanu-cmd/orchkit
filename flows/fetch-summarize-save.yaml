@@ -1,0 +1,19 @@
+name: fetch-summarize-save
+steps:
+  - id: fetch
+    node: http_get
+    input:
+      url: "https://httpbin.org/json"
+    timeout: 15s
+
+  - id: summarize
+    node: llm_groq
+    input:
+      prompt: "Describe this JSON data in one sentence: ${fetch.body}"
+      max_tokens: 100
+
+  - id: save
+    node: fs_write
+    input:
+      path: "/tmp/orchkit-summary.txt"
+      content: "${summarize.text}"

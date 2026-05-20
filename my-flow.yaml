@@ -1,0 +1,14 @@
+# my-flow.yaml
+name: my-flow
+steps:
+  - id: fetch
+    node: http_get
+    input:
+      url: "https://api.example.com/data"
+    timeout: 30s
+
+  - id: summarize
+    node: llm_groq
+    input:
+      prompt: "Summarize this data"
+      max_tokens: 512
