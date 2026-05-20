@@ -269,13 +269,14 @@ func buildInput(ctx context.Context, s Step, store Store) (Input, error) {
 		}
 		return Input(snap), nil
 	}
+	snap, err := store.Snapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
 	in := Input{}
 	for stateKey, nodeKey := range s.In {
-		v, ok, err := store.Get(ctx, stateKey)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
+		// Support dot-notation: "step.field" navigates nested maps.
+		if v, ok := getNestedKey(snap, stateKey); ok {
 			in[nodeKey] = v
 		}
 	}
@@ -509,4 +510,48 @@ func RunWithSignalContext(parent context.Context, flow *Flow, store Store, opts 
 	ctx, stop := signalContext(parent)
 	defer stop()
 	return Run(ctx, flow, store, opts...)
+}
+
+// getNestedKey navigates dot-separated keys into nested maps.
+// "timestamp.stdout" -> state["timestamp"]["stdout"]
+func getNestedKey(snap map[string]any, key string) (any, bool) {
+	parts := splitDot(key)
+	if len(parts) == 1 {
+		v, ok := snap[key]
+		return v, ok
+	}
+	cur, ok := snap[parts[0]]
+	if !ok {
+		return nil, false
+	}
+	for _, part := range parts[1:] {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		cur, ok = m[part]
+		if !ok {
+			return nil, false
+		}
+	}
+	return cur, true
+}
+
+func splitDot(s string) []string {
+	var parts []string
+	cur := ""
+	for _, c := range s {
+		if c == '.' {
+			if cur != "" {
+				parts = append(parts, cur)
+				cur = ""
+			}
+		} else {
+			cur += string(c)
+		}
+	}
+	if cur != "" {
+		parts = append(parts, cur)
+	}
+	return parts
 }

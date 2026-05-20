@@ -186,7 +186,7 @@ func (d *Dashboard) handleRun(w http.ResponseWriter, r *http.Request) {
 		}
 
 		start := time.Now()
-		_, err := orchkit.Run(r.Context(), reg.flow, store, orchkit.RunOptions{Hooks: hooks})
+		_, err := orchkit.Run(context.Background(), reg.flow, store, orchkit.RunOptions{Hooks: hooks})
 		elapsed := time.Since(start)
 
 		d.mu.Lock()
