@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"time"
 	"os"
 
 	"orchkit"
@@ -36,6 +37,7 @@ import (
 
 // MCPServer serves orchkit nodes over the MCP protocol.
 type MCPServer struct {
+	timeout time.Duration
 	nodes  []orchkit.Node
 	tools  []Tool
 	logger *log.Logger
@@ -165,7 +167,13 @@ func (s *MCPServer) handleToolsCall(ctx context.Context, req *jsonRPCRequest) *j
 		return errorResponse(req.ID, -32602, "invalid params", "name is required")
 	}
 
-	out, err := Dispatch(ctx, s.nodes, params.Name, params.Arguments)
+	toolCtx := ctx
+	if s.timeout > 0 {
+		var cancel context.CancelFunc
+		toolCtx, cancel = context.WithTimeout(ctx, s.timeout)
+		defer cancel()
+	}
+	out, err := Dispatch(toolCtx, s.nodes, params.Name, params.Arguments)
 	if err != nil {
 		// MCP tool errors are returned as content with isError=true, not JSON-RPC errors.
 		return &jsonRPCResponse{
@@ -226,4 +234,11 @@ func errorResponse(id any, code int, message, data string) *jsonRPCResponse {
 			"data":    data,
 		},
 	}
+}
+
+// WithTimeout sets a per-tool-call timeout on the MCP server.
+// Any tool call that exceeds this duration is cancelled.
+func (s *MCPServer) WithTimeout(d time.Duration) *MCPServer {
+	s.timeout = d
+	return s
 }
