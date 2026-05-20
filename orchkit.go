@@ -1,7 +1,3 @@
-// Package orchkit is a composable orchestration kernel.
-//
-// The entire kernel lives in this one file. Read it top to bottom and you
-// understand the whole system. Every concept here is small on purpose.
 package orchkit
 
 import (
@@ -9,25 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
-// ----------------------------------------------------------------------------
-// Node — the unit of work. Every "arm" is a Node.
-// ----------------------------------------------------------------------------
-
-// Input and Output are intentionally untyped (map[string]any). This keeps
-// every node uniform, makes the AI adapter trivial (map == JSON), and lets
-// you change a node's shape without cascading edits.
 type Input = map[string]any
 type Output = map[string]any
 
-// Schema describes a node for humans and for AI tool-use.
 type Schema struct {
-	Description string         // what the node does, in plain English
-	Params      map[string]any // JSON-schema-ish: field name -> {"type": "string", "desc": "..."}
+	Description string
+	Params      map[string]any
 }
 
-// Node is the only contract you must implement to be usable in a flow.
 type Node interface {
 	Name() string
 	Schema() Schema
@@ -35,93 +23,246 @@ type Node interface {
 }
 
 // ----------------------------------------------------------------------------
-// Flow — an ordered list of steps. No DAGs, no FSMs, just sequence + branches.
-// Branching/parallel can be added later when actually needed.
+// Step — now supports timeout, condition, and parallel groups.
 // ----------------------------------------------------------------------------
 
-// Step binds a Node to an ID inside a Flow and optionally maps its output
-// into the flow's shared state.
 type Step struct {
-	ID   string
-	Node Node
-	// In maps flow-state keys -> node-input keys. If nil, the entire state
-	// is passed as input. Keeps wiring explicit but ergonomic.
-	In map[string]string
-	// Out maps node-output keys -> flow-state keys. If nil, output is merged
-	// into state under the step ID as a namespace.
-	Out map[string]string
+	ID      string
+	Node    Node
+	In      map[string]string
+	Out     map[string]string
+	Timeout time.Duration      // 0 = no per-step timeout
+	When    func(Input) bool   // nil = always run; return false to skip
 }
 
-// Flow is built with a fluent builder. No hidden state, no init().
+// ----------------------------------------------------------------------------
+// Flow — sequential steps with parallel groups and conditionals.
+// ----------------------------------------------------------------------------
+
 type Flow struct {
-	steps []Step
+	steps    []step
 }
 
-// NewFlow starts a new flow.
+// internal step wrapper — holds either a single Step or a parallel group
+type step struct {
+	single   *Step
+	parallel []Step // non-nil = run concurrently, merge outputs
+}
+
 func NewFlow() *Flow { return &Flow{} }
 
-// Step appends a step. The simplest form: f.Step("fetch", http.Get(url)).
+// Step appends a sequential step.
 func (f *Flow) Step(id string, node Node) *Flow {
-	f.steps = append(f.steps, Step{ID: id, Node: node})
+	f.steps = append(f.steps, step{single: &Step{ID: id, Node: node}})
 	return f
 }
 
-// StepWith appends a step with explicit input/output mapping.
+// StepWith appends a step with full config (timeout, condition, mapping).
 func (f *Flow) StepWith(s Step) *Flow {
-	f.steps = append(f.steps, s)
+	f.steps = append(f.steps, step{single: &s})
 	return f
 }
 
-// Steps returns the steps, mostly for inspection/testing.
-func (f *Flow) Steps() []Step { return f.steps }
+// Parallel runs multiple steps concurrently and merges their outputs.
+// All steps get the same input snapshot. Each writes under its own ID.
+// If any step errors, the parallel group fails and the flow stops.
+//
+// Example:
+//
+//	flow.Parallel(
+//	    orchkit.Step{ID: "a", Node: nodeA},
+//	    orchkit.Step{ID: "b", Node: nodeB},
+//	)
+func (f *Flow) Parallel(steps ...Step) *Flow {
+	f.steps = append(f.steps, step{parallel: steps})
+	return f
+}
+
+// Steps returns all steps for inspection.
+func (f *Flow) Steps() []step { return f.steps }
 
 // ----------------------------------------------------------------------------
-// Store — where flow state lives. One interface, swap implementations freely.
+// Hooks — observe flow execution without modifying it.
 // ----------------------------------------------------------------------------
 
-// Store is the persistence boundary. MemStore is default; add boltstore.go,
-// pgstore.go etc. later without changing anything else.
-type Store interface {
-	Get(ctx context.Context, key string) (any, bool, error)
-	Put(ctx context.Context, key string, val any) error
-	Snapshot(ctx context.Context) (map[string]any, error)
+type Hooks struct {
+	OnStepStart  func(id string, in Input)
+	OnStepEnd    func(id string, out Output, err error, elapsed time.Duration)
+	OnFlowEnd    func(state map[string]any, err error)
 }
 
 // ----------------------------------------------------------------------------
-// Run — executes a flow against a store. Plain sequential. That's the point.
+// RunOptions — optional config for Run.
 // ----------------------------------------------------------------------------
 
-// Run executes every step in order. If a step errors, the run stops and
-// the error is returned with context about which step failed.
-func Run(ctx context.Context, flow *Flow, store Store) (map[string]any, error) {
+type RunOptions struct {
+	Hooks *Hooks
+}
+
+// ----------------------------------------------------------------------------
+// Run — executes a flow. Now supports parallel, conditionals, hooks, timeouts.
+// ----------------------------------------------------------------------------
+
+func Run(ctx context.Context, flow *Flow, store Store, opts ...RunOptions) (map[string]any, error) {
 	if flow == nil {
 		return nil, errors.New("orchkit: nil flow")
 	}
 	if store == nil {
 		store = NewMemStore()
 	}
+	var hooks *Hooks
+	if len(opts) > 0 {
+		hooks = opts[0].Hooks
+	}
 
-	for _, step := range flow.steps {
-		in, err := buildInput(ctx, step, store)
-		if err != nil {
-			return nil, fmt.Errorf("step %q: building input: %w", step.ID, err)
-		}
-
-		out, err := step.Node.Execute(ctx, in)
-		if err != nil {
-			return nil, fmt.Errorf("step %q (%s): %w", step.ID, step.Node.Name(), err)
-		}
-
-		if err := writeOutput(ctx, step, out, store); err != nil {
-			return nil, fmt.Errorf("step %q: writing output: %w", step.ID, err)
+	for _, s := range flow.steps {
+		if s.parallel != nil {
+			if err := runParallel(ctx, s.parallel, store, hooks); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := runStep(ctx, s.single, store, hooks); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	return store.Snapshot(ctx)
+	state, err := store.Snapshot(ctx)
+	if hooks != nil && hooks.OnFlowEnd != nil {
+		hooks.OnFlowEnd(state, err)
+	}
+	return state, err
 }
 
-func buildInput(ctx context.Context, step Step, store Store) (Input, error) {
-	if step.In == nil {
+func runStep(ctx context.Context, s *Step, store Store, hooks *Hooks) error {
+	in, err := buildInput(ctx, *s, store)
+	if err != nil {
+		return fmt.Errorf("step %q: building input: %w", s.ID, err)
+	}
+
+	// Conditional — skip step if When returns false.
+	if s.When != nil && !s.When(in) {
+		return nil
+	}
+
+	// Per-step timeout.
+	stepCtx := ctx
+	var cancel context.CancelFunc
+	if s.Timeout > 0 {
+		stepCtx, cancel = context.WithTimeout(ctx, s.Timeout)
+		defer cancel()
+	}
+
+	start := time.Now()
+	if hooks != nil && hooks.OnStepStart != nil {
+		hooks.OnStepStart(s.ID, in)
+	}
+
+	out, err := s.Node.Execute(stepCtx, in)
+	elapsed := time.Since(start)
+
+	if hooks != nil && hooks.OnStepEnd != nil {
+		hooks.OnStepEnd(s.ID, out, err, elapsed)
+	}
+
+	if err != nil {
+		return fmt.Errorf("step %q (%s): %w", s.ID, s.Node.Name(), err)
+	}
+
+	return writeOutput(ctx, *s, out, store)
+}
+
+func runParallel(ctx context.Context, steps []Step, store Store, hooks *Hooks) error {
+	type result struct {
+		id  string
+		out Output
+		err error
+	}
+
+	// Take a snapshot before parallel execution — all steps get the same input.
+	snap, err := store.Snapshot(ctx)
+	if err != nil {
+		return fmt.Errorf("parallel: snapshot: %w", err)
+	}
+
+	results := make(chan result, len(steps))
+	var wg sync.WaitGroup
+
+	for _, s := range steps {
+		wg.Add(1)
+		go func(s Step) {
+			defer wg.Done()
+
+			// Build input from the pre-parallel snapshot.
+			in := Input{}
+			if s.In == nil {
+				for k, v := range snap {
+					in[k] = v
+				}
+			} else {
+				for stateKey, nodeKey := range s.In {
+					if v, ok := snap[stateKey]; ok {
+						in[nodeKey] = v
+					}
+				}
+			}
+
+			// Conditional.
+			if s.When != nil && !s.When(in) {
+				results <- result{id: s.ID}
+				return
+			}
+
+			stepCtx := ctx
+			var cancel context.CancelFunc
+			if s.Timeout > 0 {
+				stepCtx, cancel = context.WithTimeout(ctx, s.Timeout)
+				defer cancel()
+			}
+
+			start := time.Now()
+			if hooks != nil && hooks.OnStepStart != nil {
+				hooks.OnStepStart(s.ID, in)
+			}
+
+			out, err := s.Node.Execute(stepCtx, in)
+			elapsed := time.Since(start)
+
+			if hooks != nil && hooks.OnStepEnd != nil {
+				hooks.OnStepEnd(s.ID, out, err, elapsed)
+			}
+
+			results <- result{id: s.ID, out: out, err: err}
+			_ = elapsed
+		}(s)
+	}
+
+	wg.Wait()
+	close(results)
+
+	// Collect results — fail fast on first error.
+	var firstErr error
+	for r := range results {
+		if r.err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("parallel step %q: %w", r.id, r.err)
+		}
+		if r.err == nil && r.out != nil {
+			// Find the step config for output mapping.
+			for _, s := range steps {
+				if s.ID == r.id {
+					if werr := writeOutput(ctx, s, r.out, store); werr != nil && firstErr == nil {
+						firstErr = werr
+					}
+					break
+				}
+			}
+		}
+	}
+	return firstErr
+}
+
+func buildInput(ctx context.Context, s Step, store Store) (Input, error) {
+	if s.In == nil {
 		snap, err := store.Snapshot(ctx)
 		if err != nil {
 			return nil, err
@@ -129,7 +270,7 @@ func buildInput(ctx context.Context, step Step, store Store) (Input, error) {
 		return Input(snap), nil
 	}
 	in := Input{}
-	for stateKey, nodeKey := range step.In {
+	for stateKey, nodeKey := range s.In {
 		v, ok, err := store.Get(ctx, stateKey)
 		if err != nil {
 			return nil, err
@@ -141,15 +282,14 @@ func buildInput(ctx context.Context, step Step, store Store) (Input, error) {
 	return in, nil
 }
 
-func writeOutput(ctx context.Context, step Step, out Output, store Store) error {
+func writeOutput(ctx context.Context, s Step, out Output, store Store) error {
 	if out == nil {
 		return nil
 	}
-	if step.Out == nil {
-		// Namespace under the step ID so two steps can't clobber each other.
-		return store.Put(ctx, step.ID, out)
+	if s.Out == nil {
+		return store.Put(ctx, s.ID, out)
 	}
-	for nodeKey, stateKey := range step.Out {
+	for nodeKey, stateKey := range s.Out {
 		if v, ok := out[nodeKey]; ok {
 			if err := store.Put(ctx, stateKey, v); err != nil {
 				return err
@@ -160,7 +300,39 @@ func writeOutput(ctx context.Context, step Step, out Output, store Store) error 
 }
 
 // ----------------------------------------------------------------------------
-// MemStore — the default in-memory Store. ~30 lines.
+// FlowNode — wraps a Flow as a Node. Compose flows inside flows.
+// ----------------------------------------------------------------------------
+
+type FlowNode struct {
+	flow  *Flow
+	store Store
+}
+
+// NewFlowNode wraps a Flow so it can be used as a step inside another Flow.
+func NewFlowNode(flow *Flow, store Store) *FlowNode {
+	return &FlowNode{flow: flow, store: store}
+}
+
+func (f *FlowNode) Name() string { return "flow" }
+func (f *FlowNode) Schema() Schema {
+	return Schema{Description: "Executes a sub-flow as a single step."}
+}
+func (f *FlowNode) Execute(ctx context.Context, in Input) (Output, error) {
+	// Seed the sub-flow store with parent input.
+	store := f.store
+	if store == nil {
+		store = NewMemStore()
+	}
+	for k, v := range in {
+		if err := store.Put(ctx, k, v); err != nil {
+			return nil, err
+		}
+	}
+	return Run(ctx, f.flow, store)
+}
+
+// ----------------------------------------------------------------------------
+// MemStore
 // ----------------------------------------------------------------------------
 
 type MemStore struct {
@@ -194,4 +366,14 @@ func (m *MemStore) Snapshot(_ context.Context) (map[string]any, error) {
 		out[k] = v
 	}
 	return out, nil
+}
+
+// ----------------------------------------------------------------------------
+// Store — where flow state lives. One interface, swap implementations freely.
+// ----------------------------------------------------------------------------
+
+type Store interface {
+	Get(ctx context.Context, key string) (any, bool, error)
+	Put(ctx context.Context, key string, val any) error
+	Snapshot(ctx context.Context) (map[string]any, error)
 }
