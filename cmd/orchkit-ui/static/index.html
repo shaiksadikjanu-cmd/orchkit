@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>orchkit</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--surface3:#2a2f45;
+  --border:#2e3347;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--red:#ef4444;
+  --yellow:#f59e0b;--radius:8px;
+}
+body{background:var(--bg);color:var(--text);font-family:'SF Mono',Monaco,monospace;font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);height:48px;display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;z-index:100}
+.logo{color:var(--accent2);font-weight:700;font-size:15px;letter-spacing:.5px;margin-right:8px}
+.topbar input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:5px;font-size:12px;font-family:inherit;width:180px}
+.topbar input:focus{outline:none;border-color:var(--accent)}
+.btn{padding:6px 14px;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:500;display:flex;align-items:center;gap:6px;transition:opacity .15s}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{opacity:.85}
+.btn-ghost{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
+.spacer{flex:1}
+.workspace{display:flex;flex:1;overflow:hidden}
+.palette{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.palette-search{padding:10px;border-bottom:1px solid var(--border)}
+.palette-search input{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:5px;font-size:12px;font-family:inherit}
+.palette-search input:focus{outline:none;border-color:var(--accent)}
+.palette-list{overflow-y:auto;flex:1}
+.palette-group-header{padding:8px 12px 4px;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.8px}
+.palette-node{padding:7px 12px;cursor:grab;display:flex;align-items:center;gap:8px;transition:background .1s}
+.palette-node:hover{background:var(--surface2)}
+.node-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.palette-node span{color:var(--text2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.canvas-wrap{flex:1;position:relative;overflow:hidden;background:var(--bg)}
+.canvas-bg{position:absolute;inset:0;background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:24px 24px;opacity:.4}
+svg.connections{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.canvas{position:absolute;inset:0;z-index:2}
+.empty-hint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text3);gap:8px;pointer-events:none}
+.empty-hint .big{font-size:32px}
+.flow-node{position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);min-width:160px;cursor:move;user-select:none;z-index:10;transition:border-color .15s}
+.flow-node.selected{border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.2)}
+.flow-node-header{padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0}
+.flow-node-title{font-size:12px;font-weight:600;color:var(--text);flex:1}
+.flow-node-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 2px}
+.flow-node-del:hover{color:var(--red)}
+.flow-node-body{padding:8px 12px}
+.flow-node-id{color:var(--text3);font-size:10px}
+.port{width:12px;height:12px;border-radius:50%;border:2px solid var(--border);background:var(--surface2);position:absolute;cursor:crosshair;z-index:20}
+.port:hover{background:var(--accent);border-color:var(--accent2)}
+.port-out{right:-6px;top:50%;transform:translateY(-50%)}
+.port-in{left:-6px;top:50%;transform:translateY(-50%)}
+.props{width:280px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.props-header{padding:12px 16px;border-bottom:1px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;justify-content:space-between}
+.props-body{padding:16px;overflow-y:auto;flex:1}
+.field{margin-bottom:14px}
+.field label{display:block;color:var(--text2);font-size:11px;margin-bottom:5px}
+.field input,.field textarea,.field select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:5px;font-size:12px;font-family:inherit;resize:vertical}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+.field .hint{color:var(--text3);font-size:10px;margin-top:3px}
+.field .map-hint{color:var(--accent2);font-size:10px;margin-top:3px;cursor:pointer}
+.props-empty{color:var(--text3);font-size:12px;text-align:center;padding:32px 16px}
+.step-id-row{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.output{height:200px;background:var(--surface);border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.output-header{padding:8px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.8px}
+.output-body{flex:1;overflow-y:auto;padding:12px 16px;font-size:11px;line-height:1.6}
+.output-body pre{white-space:pre-wrap;word-break:break-all;color:var(--text2)}
+.conn-line{stroke:#6366f1;stroke-width:2;fill:none;opacity:.7}
+.conn-temp{stroke:#818cf8;stroke-width:1.5;fill:none;stroke-dasharray:4}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:var(--radius);font-size:12px;z-index:9999;animation:fi .2s}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="logo">&#9670; orchkit</span>
+  <input id="flowName" type="text" value="my-flow" placeholder="flow name">
+  <button class="btn btn-ghost" onclick="clearCanvas()">Clear</button>
+  <button class="btn btn-ghost" onclick="exportYAML()">&#8595; YAML</button>
+  <button class="btn btn-ghost" onclick="importYAML()">&#8593; Import</button>
+  <div class="spacer"></div>
+  <span id="runStatus" style="color:var(--text3);font-size:11px">Ready</span>
+  <button class="btn btn-primary" onclick="runFlow()">&#9654; Run</button>
+</div>
+<div class="workspace">
+  <div class="palette">
+    <div class="palette-search">
+      <input type="text" id="paletteSearch" placeholder="Search nodes..." oninput="filterPalette(this.value)">
+    </div>
+    <div class="palette-list" id="paletteList"></div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+    <div class="canvas-wrap" id="canvasWrap">
+      <div class="canvas-bg"></div>
+      <svg class="connections" id="svgLayer"></svg>
+      <div class="canvas" id="canvas">
+        <div class="empty-hint" id="emptyHint">
+          <div class="big">&#9670;</div>
+          <p>Drag nodes from the left onto the canvas</p>
+          <p style="color:var(--text3);font-size:11px">Connect nodes by dragging from the right dot to a left dot</p>
+        </div>
+      </div>
+    </div>
+    <div class="output">
+      <div class="output-header">Output</div>
+      <div class="output-body" id="outputBody"><pre style="color:var(--text3)">Run a flow to see output here.</pre></div>
+    </div>
+  </div>
+  <div class="props">
+    <div class="props-header">
+      <span>Properties</span>
+      <span id="propsTitle" style="color:var(--accent2);font-size:11px"></span>
+    </div>
+    <div class="props-body" id="propsBody"><div class="props-empty">Select a node to configure it</div></div>
+  </div>
+</div>
+<script>
+var allNodes=[], canvasNodes=[], connections=[], selectedId=null, nodeCounter=0, connecting=null;
+
+async function boot(){
+  var r=await fetch('/api/nodes'); allNodes=await r.json();
+  renderPalette(allNodes); setupDrop(); setupMouse();
+}
+
+var catColors={
+  'HTTP/Web':'#6366f1','Data':'#8b5cf6','Database':'#0ea5e9','Messaging':'#22c55e',
+  'Cloud':'#f59e0b','Auth':'#ef4444','Developer':'#ec4899','CRM':'#14b8a6',
+  'Productivity':'#f97316','AI/LLM':'#a855f7','Social':'#06b6d4','Payments':'#84cc16',
+  'Support':'#fb923c','Task':'#64748b','Utilities':'#94a3b8'
+};
+
+var catOrder=['HTTP/Web','Data','Database','AI/LLM','Messaging','Social',
+  'Developer','CRM','Productivity','Task','Cloud','Auth','Payments','Support','Utilities'];
+
+function renderPalette(nodes){
+  var groups={};
+  nodes.forEach(function(n){ if(!groups[n.category])groups[n.category]=[]; groups[n.category].push(n); });
+  var list=document.getElementById('paletteList'); list.innerHTML='';
+  catOrder.forEach(function(cat){
+    if(!groups[cat]||!groups[cat].length)return;
+    var grp=document.createElement('div');
+    grp.innerHTML='<div class="palette-group-header">'+cat+'</div>';
+    groups[cat].forEach(function(n){
+      var el=document.createElement('div');
+      el.className='palette-node'; el.draggable=true; el.dataset.node=n.name;
+      el.innerHTML='<div class="node-dot" style="background:'+(catColors[n.category]||'#64748b')+'"></div><span title="'+esc(n.description)+'">'+esc(n.name)+'</span>';
+      el.addEventListener('dragstart',function(e){ e.dataTransfer.setData('nodeName',n.name); });
+      grp.appendChild(el);
+    });
+    list.appendChild(grp);
+  });
+}
+
+function filterPalette(q){
+  q=q.toLowerCase();
+  renderPalette(q?allNodes.filter(function(n){return n.name.includes(q)||n.description.toLowerCase().includes(q);}):allNodes);
+}
+
+function setupDrop(){
+  var wrap=document.getElementById('canvasWrap');
+  wrap.addEventListener('dragover',function(e){e.preventDefault();});
+  wrap.addEventListener('drop',function(e){
+    e.preventDefault();
+    var name=e.dataTransfer.getData('nodeName'); if(!name)return;
+    var rect=wrap.getBoundingClientRect();
+    addNode(name, e.clientX-rect.left-80, e.clientY-rect.top-30);
+  });
+}
+
+function addNode(nodeType,x,y){
+  var info=allNodes.find(function(n){return n.name===nodeType;}); if(!info)return;
+  nodeCounter++;
+  var id='node_'+nodeCounter;
+  var inputs={};
+  Object.keys(info.params||{}).forEach(function(k){inputs[k]='';});
+  var node={id:id,nodeType:nodeType,x:x,y:y,inputs:inputs,stepId:nodeType+'_'+nodeCounter,info:info};
+  canvasNodes.push(node);
+  document.getElementById('emptyHint').style.display='none';
+  renderNode(node); selectNode(id);
+}
+
+function renderNode(node){
+  var color=catColors[node.info.category]||'#64748b';
+  var el=document.createElement('div');
+  el.className='flow-node'; el.id='fn_'+node.id;
+  el.style.left=node.x+'px'; el.style.top=node.y+'px';
+  el.innerHTML='<div class="flow-node-header" style="border-top:3px solid '+color+'">'+
+    '<div class="node-dot" style="background:'+color+'"></div>'+
+    '<span class="flow-node-title">'+esc(node.nodeType)+'</span>'+
+    '<button class="flow-node-del" onclick="deleteNode(\''+node.id+'\')">x</button></div>'+
+    '<div class="flow-node-body"><div class="flow-node-id" id="sid_'+node.id+'">'+esc(node.stepId)+'</div>'+
+    '<div id="status_'+node.id+'" style="font-size:10px;margin-top:2px"></div></div>'+
+    '<div class="port port-out" id="out_'+node.id+'"></div>'+
+    '<div class="port port-in" id="in_'+node.id+'"></div>';
+
+  var moving=false,sx,sy,ox,oy;
+  el.addEventListener('mousedown',function(e){
+    if(e.target.classList.contains('port')||e.target.classList.contains('flow-node-del'))return;
+    e.preventDefault(); moving=true; sx=e.clientX; sy=e.clientY; ox=node.x; oy=node.y;
+    selectNode(node.id);
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!moving)return;
+    node.x=ox+(e.clientX-sx); node.y=oy+(e.clientY-sy);
+    el.style.left=node.x+'px'; el.style.top=node.y+'px'; drawConns();
+  });
+  document.addEventListener('mouseup',function(){moving=false;});
+
+  el.querySelector('.port-out').addEventListener('mousedown',function(e){
+    e.stopPropagation(); e.preventDefault();
+    connecting={fromId:node.id};
+  });
+  el.querySelector('.port-in').addEventListener('mouseup',function(e){
+    e.stopPropagation();
+    if(connecting&&connecting.fromId!==node.id){
+      if(!connections.find(function(c){return c.fromId===connecting.fromId&&c.toId===node.id;})){
+        connections.push({fromId:connecting.fromId,toId:node.id});
+        drawConns(); toast('Connected');
+      }
+      connecting=null;
+    }
+  });
+  el.addEventListener('click',function(e){
+    if(!e.target.classList.contains('flow-node-del')&&!e.target.classList.contains('port'))selectNode(node.id);
+  });
+  document.getElementById('canvas').appendChild(el);
+  drawConns();
+}
+
+function setupMouse(){
+  document.addEventListener('mousemove',function(e){
+    if(!connecting)return;
+    var svg=document.getElementById('svgLayer');
+    var old=svg.querySelectorAll('.conn-temp'); old.forEach(function(el){el.remove();});
+    var fromEl=document.getElementById('out_'+connecting.fromId); if(!fromEl)return;
+    var wrap=document.getElementById('canvasWrap').getBoundingClientRect();
+    var fr=fromEl.getBoundingClientRect();
+    var x1=fr.left-wrap.left+fr.width/2, y1=fr.top-wrap.top+fr.height/2;
+    var x2=e.clientX-wrap.left, y2=e.clientY-wrap.top;
+    var dx=Math.abs(x2-x1)*0.5;
+    var p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d','M'+x1+','+y1+' C'+(x1+dx)+','+y1+' '+(x2-dx)+','+y2+' '+x2+','+y2);
+    p.setAttribute('class','conn-temp'); svg.appendChild(p);
+  });
+  document.addEventListener('mouseup',function(){
+    if(connecting){connecting=null; drawConns();}
+  });
+}
+
+function drawConns(){
+  var svg=document.getElementById('svgLayer'); svg.innerHTML='';
+  var wrap=document.getElementById('canvasWrap').getBoundingClientRect();
+  connections.forEach(function(conn){
+    var fe=document.getElementById('out_'+conn.fromId);
+    var te=document.getElementById('in_'+conn.toId);
+    if(!fe||!te)return;
+    var fr=fe.getBoundingClientRect(), tr=te.getBoundingClientRect();
+    var x1=fr.left-wrap.left+fr.width/2, y1=fr.top-wrap.top+fr.height/2;
+    var x2=tr.left-wrap.left+tr.width/2, y2=tr.top-wrap.top+tr.height/2;
+    var dx=Math.abs(x2-x1)*0.5;
+    var p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d','M'+x1+','+y1+' C'+(x1+dx)+','+y1+' '+(x2-dx)+','+y2+' '+x2+','+y2);
+    p.setAttribute('class','conn-line'); svg.appendChild(p);
+  });
+}
+
+function selectNode(id){
+  document.querySelectorAll('.flow-node').forEach(function(el){el.classList.remove('selected');});
+  var el=document.getElementById('fn_'+id); if(el)el.classList.add('selected');
+  selectedId=id; renderProps(id);
+}
+
+function renderProps(id){
+  var node=canvasNodes.find(function(n){return n.id===id;}); if(!node)return;
+  document.getElementById('propsTitle').textContent=node.nodeType;
+  var body=document.getElementById('propsBody');
+  var params=node.info.params||{};
+  var prev=getPrev(id);
+
+  var html='<div class="step-id-row"><div class="field"><label>Step ID</label>'+
+    '<input type="text" value="'+esc(node.stepId)+'" onchange="updateStepId(\''+id+'\',this.value)">'+
+    '<div class="hint">Unique name for this step</div></div></div>';
+
+  Object.entries(params).forEach(function(entry){
+    var key=entry[0], meta=entry[1]||{};
+    var val=node.inputs[key]||'';
+    var hint=meta.desc||'';
+    var isLong=(key==='prompt'||key==='body'||key==='content'||key==='text'||key==='query'||key==='notes'||key==='template');
+    var input=isLong
+      ? '<textarea rows="3" onchange="updateInput(\''+id+'\',\''+key+'\',this.value)">'+esc(val)+'</textarea>'
+      : '<input type="'+(meta.type==='integer'||meta.type==='number'?'number':'text')+'" value="'+esc(val)+'" placeholder="'+esc(hint)+'" onchange="updateInput(\''+id+'\',\''+key+'\',this.value)">';
+    var maps='';
+    prev.forEach(function(p){
+      maps+='<div class="map-hint" onclick="setInput(\''+id+'\',\''+key+'\','+"'"+'\${'+p.stepId+'.}'+"'"+')">'+
+        '&larr; '+esc(p.stepId)+'.*</div>';
+    });
+    html+='<div class="field"><label>'+esc(key)+'</label>'+input+'<div class="hint">'+esc(hint)+'</div>'+maps+'</div>';
+  });
+
+  if(prev.length>0){
+    html+='<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">'+
+      '<div style="color:var(--text3);font-size:10px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.8px">Previous outputs</div>';
+    prev.forEach(function(p){
+      html+='<div style="color:var(--accent2);font-size:11px;margin-bottom:4px">${'+esc(p.stepId)+'.*}</div>';
+    });
+    html+='</div>';
+  }
+  body.innerHTML=html;
+}
+
+function getPrev(id){
+  var result=[], seen={};
+  function walk(nid){
+    connections.filter(function(c){return c.toId===nid;}).forEach(function(c){
+      if(!seen[c.fromId]){
+        seen[c.fromId]=1;
+        var n=canvasNodes.find(function(x){return x.id===c.fromId;});
+        if(n){result.unshift(n); walk(c.fromId);}
+      }
+    });
+  }
+  walk(id); return result;
+}
+
+function updateInput(id,key,val){
+  var n=canvasNodes.find(function(x){return x.id===id;}); if(n)n.inputs[key]=val;
+}
+function setInput(id,key,val){
+  var n=canvasNodes.find(function(x){return x.id===id;}); if(n){n.inputs[key]=val;renderProps(id);}
+}
+function updateStepId(id,val){
+  var n=canvasNodes.find(function(x){return x.id===id;}); if(n){n.stepId=val; var el=document.getElementById('sid_'+id); if(el)el.textContent=val;}
+}
+
+function deleteNode(id){
+  canvasNodes=canvasNodes.filter(function(n){return n.id!==id;});
+  connections=connections.filter(function(c){return c.fromId!==id&&c.toId!==id;});
+  var el=document.getElementById('fn_'+id); if(el)el.remove();
+  if(selectedId===id){selectedId=null; document.getElementById('propsBody').innerHTML='<div class="props-empty">Select a node to configure it</div>'; document.getElementById('propsTitle').textContent='';}
+  drawConns();
+  if(!canvasNodes.length)document.getElementById('emptyHint').style.display='flex';
+}
+
+function getOrdered(){
+  var deg={};
+  canvasNodes.forEach(function(n){deg[n.id]=0;});
+  connections.forEach(function(c){deg[c.toId]=(deg[c.toId]||0)+1;});
+  var q=canvasNodes.filter(function(n){return !deg[n.id];}), result=[];
+  while(q.length){
+    var node=q.shift(); result.push(node);
+    connections.filter(function(c){return c.fromId===node.id;}).forEach(function(c){
+      deg[c.toId]--;
+      if(!deg[c.toId])q.push(canvasNodes.find(function(n){return n.id===c.toId;}));
+    });
+  }
+  canvasNodes.forEach(function(n){if(!result.find(function(r){return r.id===n.id;}))result.push(n);});
+  return result;
+}
+
+async function runFlow(){
+  if(!canvasNodes.length){toast('Add some nodes first');return;}
+  var ordered=getOrdered();
+  var steps=ordered.map(function(n){
+    var inp={};
+    Object.entries(n.inputs).forEach(function(e){if(e[1]!=='')inp[e[0]]=e[1];});
+    return {id:n.stepId,node:n.nodeType,input:inp};
+  });
+  var name=document.getElementById('flowName').value||'my-flow';
+  document.getElementById('runStatus').textContent='Running...';
+  document.getElementById('runStatus').style.color='var(--yellow)';
+  document.getElementById('outputBody').innerHTML='<pre style="color:var(--text3)">Running...</pre>';
+  ordered.forEach(function(n){var el=document.getElementById('status_'+n.id); if(el)el.innerHTML='<span style="color:var(--yellow)">running</span>';});
+
+  var resp=await fetch('/api/run',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({steps:steps,name:name})});
+  var result=await resp.json();
+
+  if(result.error){
+    document.getElementById('runStatus').textContent='Failed';
+    document.getElementById('runStatus').style.color='var(--red)';
+    document.getElementById('outputBody').innerHTML='<span style="color:var(--red)">'+esc(result.error)+'</span>';
+    return;
+  }
+  document.getElementById('runStatus').textContent='Complete';
+  document.getElementById('runStatus').style.color='var(--green)';
+  var out='';
+  ordered.forEach(function(n){
+    var s=result.state&&result.state[n.stepId];
+    var el=document.getElementById('status_'+n.id);
+    if(s){
+      if(el)el.innerHTML='<span style="color:var(--green)">done</span>';
+      out+='<div style="margin-bottom:10px"><div style="color:var(--accent2);margin-bottom:3px">'+esc(n.stepId)+'</div><pre>'+esc(JSON.stringify(s,null,2))+'</pre></div>';
+    } else {
+      if(el)el.innerHTML='<span style="color:var(--text3)">skipped</span>';
+    }
+  });
+  document.getElementById('outputBody').innerHTML=out||'<pre>'+esc(JSON.stringify(result.state,null,2))+'</pre>';
+}
+
+function exportYAML(){
+  var name=document.getElementById('flowName').value||'my-flow';
+  var ordered=getOrdered();
+  var yaml='name: '+name+'\nsteps:\n';
+  ordered.forEach(function(n){
+    yaml+='  - id: '+n.stepId+'\n    node: '+n.nodeType+'\n';
+    var inp=Object.entries(n.inputs).filter(function(e){return e[1]!=='';});
+    if(inp.length){yaml+='    input:\n'; inp.forEach(function(e){yaml+='      '+e[0]+': "'+e[1].replace(/"/g,'\\"')+'"\n';});}
+  });
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([yaml],{type:'text/yaml'}));
+  a.download=name+'.yaml'; a.click(); toast('YAML downloaded');
+}
+
+function importYAML(){
+  var inp=document.createElement('input'); inp.type='file'; inp.accept='.yaml,.yml';
+  inp.onchange=function(e){
+    var r=new FileReader();
+    r.onload=function(ev){loadYAML(ev.target.result);};
+    r.readAsText(e.target.files[0]);
+  };
+  inp.click();
+}
+
+function loadYAML(yaml){
+  clearCanvas();
+  var lines=yaml.split('\n'), step=null, inInput=false, x=80, y=80;
+  lines.forEach(function(line){
+    var t=line.trim();
+    if(t.startsWith('name:'))document.getElementById('flowName').value=t.replace('name:','').trim();
+    else if(t.startsWith('- id:')){
+      if(step)finalizeStep(step,x,y);
+      step={id:t.replace('- id:','').trim(),node:'',inputs:{}}; x+=200; if(x>800){x=80;y+=150;} inInput=false;
+    } else if(step&&t.startsWith('node:'))step.node=t.replace('node:','').trim();
+    else if(t==='input:')inInput=true;
+    else if(inInput&&t.includes(':')){var p=t.split(':'); step.inputs[p[0].trim()]=p.slice(1).join(':').trim().replace(/^"|"$/g,'');}
+  });
+  if(step)finalizeStep(step,x,y); toast('Flow imported');
+}
+
+function finalizeStep(step,x,y){
+  var info=allNodes.find(function(n){return n.name===step.node;}); if(!info)return;
+  nodeCounter++; var id='node_'+nodeCounter;
+  var inputs={}; Object.keys(info.params||{}).forEach(function(k){inputs[k]=step.inputs[k]||'';});
+  var node={id:id,nodeType:step.node,x:x,y:y,inputs:inputs,stepId:step.id||step.node+'_'+nodeCounter,info:info};
+  canvasNodes.push(node); document.getElementById('emptyHint').style.display='none';
+  renderNode(node);
+}
+
+function clearCanvas(){
+  canvasNodes=[]; connections=[]; selectedId=null; nodeCounter=0;
+  document.getElementById('canvas').innerHTML='<div class="empty-hint" id="emptyHint"><div class="big">&#9670;</div><p>Drag nodes from the left onto the canvas</p><p style="color:var(--text3);font-size:11px">Connect nodes by dragging from the right dot to a left dot</p></div>';
+  document.getElementById('svgLayer').innerHTML='';
+  document.getElementById('propsBody').innerHTML='<div class="props-empty">Select a node to configure it</div>';
+  document.getElementById('propsTitle').textContent='';
+  document.getElementById('outputBody').innerHTML='<pre style="color:var(--text3)">Run a flow to see output here.</pre>';
+  document.getElementById('runStatus').textContent='Ready';
+  document.getElementById('runStatus').style.color='var(--text3)';
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(msg){var el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(function(){el.remove();},2500);}
+
+boot();
+</script>
+</body>
+</html>
