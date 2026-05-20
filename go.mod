@@ -3,6 +3,7 @@ module orchkit
 go 1.22
 
 require (
+	github.com/lib/pq v1.12.3
 	go.etcd.io/bbolt v1.3.9
 	modernc.org/sqlite v1.29.9
 )
