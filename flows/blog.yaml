@@ -1,0 +1,19 @@
+name: ai-blog-publisher
+steps:
+  - id: fetch_news
+    node: rss
+    input:
+      url: "https://hnrss.org/frontpage"
+      limit: 5
+
+  - id: write_post
+    node: llm_groq
+    input:
+      prompt: "Write a short blog post about today's top tech news from Hacker News. Be engaging and informative."
+      max_tokens: 800
+
+  - id: save
+    node: fs_write
+    input:
+      path: "/tmp/orchkit-blog.md"
+      content: "${write_post.text}"

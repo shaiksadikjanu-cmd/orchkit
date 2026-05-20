@@ -1,0 +1,21 @@
+name: ai-blog-publisher
+steps:
+  - id: fetch_news
+    node: rss
+    input:
+      url: "https://hnrss.org/frontpage"
+      limit: 5
+
+  - id: write_post
+    node: llm_groq
+    input:
+      prompt: "Write a blog post about these stories: ${fetch_news.items}"
+      max_tokens: 1000
+
+  - id: publish
+    node: wordpress
+    input:
+      action: "create_post"
+      title: "Today's Tech News"
+      content: "${write_post.text}"
+      status: "publish"

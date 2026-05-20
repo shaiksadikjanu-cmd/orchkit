@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// YAMLFlow defines a flow in a declarative format.
 type YAMLFlow struct {
 	Name  string     `yaml:"name"`
 	Steps []YAMLStep `yaml:"steps"`
@@ -21,8 +20,7 @@ type YAMLStep struct {
 	Parallel []YAMLStep     `yaml:"parallel"`
 }
 
-// RunYAML executes a YAMLFlow using a node registry.
-// Supports ${step.field} interpolation between steps.
+// RunYAML executes a YAMLFlow. Supports ${step.field} interpolation.
 func RunYAML(ctx context.Context, flow YAMLFlow, registry map[string]Node, store Store, opts ...RunOptions) (map[string]any, error) {
 	if store == nil {
 		store = NewMemStore()
@@ -39,33 +37,40 @@ func RunYAML(ctx context.Context, flow YAMLFlow, registry map[string]Node, store
 			return nil, fmt.Errorf("orchkit: unknown node %q in step %q", s.Node, s.ID)
 		}
 
-		// Get current state for interpolation.
+		// Snapshot CURRENT state — includes all previous step outputs.
 		state, err := store.Snapshot(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("step %q: snapshot: %w", s.ID, err)
 		}
 
-		// Resolve ${step.field} and ${ENV_VAR} in input values.
+		// Resolve ${step.field} references using current state.
+		// This happens AFTER previous steps have written their outputs.
 		resolvedInput := InterpolateStep(s.Input, state)
 
-		// Seed store with resolved static inputs.
+		// Build the node's input — merge state + resolved step inputs.
+		// Step-level inputs take priority over inherited state.
+		in := make(Input)
+		for k, v := range state {
+			in[k] = v
+		}
 		for k, v := range resolvedInput {
-			store.Put(ctx, k, v)
+			in[k] = v
 		}
 
-		step := Step{ID: s.ID, Node: node}
-
+		// Parse timeout.
+		var timeout time.Duration
 		if s.Timeout != "" {
-			d, err := time.ParseDuration(s.Timeout)
+			timeout, err = time.ParseDuration(s.Timeout)
 			if err != nil {
 				return nil, fmt.Errorf("step %q: invalid timeout %q: %w", s.ID, s.Timeout, err)
 			}
-			step.Timeout = d
 		}
 
-		in, err := buildInput(ctx, step, store)
-		if err != nil {
-			return nil, fmt.Errorf("step %q: building input: %w", s.ID, err)
+		stepCtx := ctx
+		var cancel context.CancelFunc
+		if timeout > 0 {
+			stepCtx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
 		}
 
 		start := time.Now()
@@ -73,7 +78,7 @@ func RunYAML(ctx context.Context, flow YAMLFlow, registry map[string]Node, store
 			hooks.OnStepStart(s.ID, in)
 		}
 
-		out, err := node.Execute(ctx, in)
+		out, err := node.Execute(stepCtx, in)
 		elapsed := time.Since(start)
 
 		if hooks != nil && hooks.OnStepEnd != nil {
@@ -84,8 +89,11 @@ func RunYAML(ctx context.Context, flow YAMLFlow, registry map[string]Node, store
 			return nil, fmt.Errorf("step %q (%s): %w", s.ID, node.Name(), err)
 		}
 
-		if err := writeOutput(ctx, step, out, store); err != nil {
-			return nil, fmt.Errorf("step %q: writing output: %w", s.ID, err)
+		// Write output under step ID namespace.
+		if out != nil {
+			if err := store.Put(ctx, s.ID, out); err != nil {
+				return nil, fmt.Errorf("step %q: writing output: %w", s.ID, err)
+			}
 		}
 	}
 
