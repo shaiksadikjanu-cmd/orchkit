@@ -53,11 +53,11 @@ func NewMCPServer(nodes ...orchkit.Node) *MCPServer {
 // Serve starts the MCP server. Blocks until ctx is cancelled or stdin closes.
 // All MCP communication is over stdin/stdout. Logs go to stderr.
 func (s *MCPServer) Serve(ctx context.Context) error {
-	return s.serveIO(ctx, os.Stdin, os.Stdout)
+	return s.ServeIO(ctx, os.Stdin, os.Stdout)
 }
 
 // serveIO is the testable core — accepts any reader/writer.
-func (s *MCPServer) serveIO(ctx context.Context, in io.Reader, out io.Writer) error {
+func (s *MCPServer) ServeIO(ctx context.Context, in io.Reader, out io.Writer) error {
 	scanner := bufio.NewScanner(in)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB max message
 
