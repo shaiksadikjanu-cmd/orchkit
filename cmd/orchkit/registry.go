@@ -86,6 +86,15 @@ func buildRegistry() *orchkit.Registry {
 	r.Register("llm_gemini", func() orchkit.Node { return nodes.NewGeminiLLM(os.Getenv("GEMINI_API_KEY"), "") })
 	r.Register("openai",     func() orchkit.Node { return nodes.NewOpenAI(os.Getenv("OPENAI_API_KEY"), "") })
 
+	// Commerce & Productivity
+	r.Register("whatsapp",  func() orchkit.Node { return nodes.NewWhatsApp(os.Getenv("WHATSAPP_TOKEN"), os.Getenv("WHATSAPP_PHONE_ID")) })
+	r.Register("twitter",   func() orchkit.Node { return nodes.NewTwitter(os.Getenv("TWITTER_BEARER_TOKEN")) })
+	r.Register("shopify",   func() orchkit.Node { return nodes.NewShopify(os.Getenv("SHOPIFY_STORE"), os.Getenv("SHOPIFY_TOKEN")) })
+	r.Register("mailchimp", func() orchkit.Node { return nodes.NewMailchimp(os.Getenv("MAILCHIMP_API_KEY"), os.Getenv("MAILCHIMP_SERVER")) })
+	r.Register("zoom",      func() orchkit.Node { return nodes.NewZoom(os.Getenv("ZOOM_TOKEN")) })
+	r.Register("wordpress", func() orchkit.Node { return nodes.NewWordPress(os.Getenv("WORDPRESS_URL"), os.Getenv("WORDPRESS_USER"), os.Getenv("WORDPRESS_PASS")) })
+	r.Register("trello",    func() orchkit.Node { return nodes.NewTrello(os.Getenv("TRELLO_API_KEY"), os.Getenv("TRELLO_TOKEN")) })
+
 	// Utilities
 	r.Register("delay",    func() orchkit.Node { return nodes.NewDelay(0) })
 	r.Register("env",      func() orchkit.Node { return nodes.NewEnv() })
@@ -95,3 +104,5 @@ func buildRegistry() *orchkit.Registry {
 
 	return r
 }
+
+func init() {} // ensure file is valid
