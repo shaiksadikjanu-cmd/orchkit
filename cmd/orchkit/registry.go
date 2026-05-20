@@ -31,7 +31,7 @@ func buildRegistry() *orchkit.Registry {
 	r.Register("mongodb",  func() orchkit.Node { return nodes.NewMongoDB("", "", "") })
 	r.Register("redis",    func() orchkit.Node { return nodes.NewRedis("", "") })
 
-	// Messaging — credentials from environment
+	// Messaging
 	r.Register("slack",    func() orchkit.Node { return nodes.NewSlack(os.Getenv("SLACK_TOKEN")) })
 	r.Register("discord",  func() orchkit.Node { return nodes.NewDiscord(os.Getenv("DISCORD_TOKEN")) })
 	r.Register("telegram", func() orchkit.Node {
@@ -43,12 +43,17 @@ func buildRegistry() *orchkit.Registry {
 	r.Register("smtp", func() orchkit.Node {
 		return nodes.NewSMTP(os.Getenv("SMTP_HOST"), 587, os.Getenv("SMTP_USER"), os.Getenv("SMTP_PASS"))
 	})
+	r.Register("whatsapp", func() orchkit.Node {
+		return nodes.NewWhatsApp(os.Getenv("WHATSAPP_TOKEN"), os.Getenv("WHATSAPP_PHONE_ID"))
+	})
+	r.Register("twitter", func() orchkit.Node { return nodes.NewTwitter(os.Getenv("TWITTER_BEARER_TOKEN")) })
 
 	// Cloud
 	r.Register("s3", func() orchkit.Node {
 		return nodes.NewS3(os.Getenv("AWS_REGION"), os.Getenv("AWS_ACCESS_KEY"), os.Getenv("AWS_SECRET_KEY"), os.Getenv("S3_BUCKET"))
 	})
 	r.Register("kafka", func() orchkit.Node { return nodes.NewKafka([]string{os.Getenv("KAFKA_BROKER")}, "") })
+	r.Register("dropbox", func() orchkit.Node { return nodes.NewDropbox(os.Getenv("DROPBOX_TOKEN")) })
 
 	// Auth
 	r.Register("jwt", func() orchkit.Node { return nodes.NewJWT(os.Getenv("JWT_SECRET")) })
@@ -57,43 +62,59 @@ func buildRegistry() *orchkit.Registry {
 	})
 
 	// Developer
-	r.Register("github", func() orchkit.Node { return nodes.NewGitHub(os.Getenv("GITHUB_TOKEN")) })
-	r.Register("jira", func() orchkit.Node {
-		return nodes.NewJira(os.Getenv("JIRA_DOMAIN"), os.Getenv("JIRA_EMAIL"), os.Getenv("JIRA_TOKEN"))
-	})
-	r.Register("linear", func() orchkit.Node { return nodes.NewLinear(os.Getenv("LINEAR_API_KEY")) })
+	r.Register("github",   func() orchkit.Node { return nodes.NewGitHub(os.Getenv("GITHUB_TOKEN")) })
+	r.Register("gitlab",   func() orchkit.Node { return nodes.NewGitLab(os.Getenv("GITLAB_TOKEN"), "") })
+	r.Register("jira",     func() orchkit.Node { return nodes.NewJira(os.Getenv("JIRA_DOMAIN"), os.Getenv("JIRA_EMAIL"), os.Getenv("JIRA_TOKEN")) })
+	r.Register("linear",   func() orchkit.Node { return nodes.NewLinear(os.Getenv("LINEAR_API_KEY")) })
+	r.Register("circleci", func() orchkit.Node { return nodes.NewCircleCI(os.Getenv("CIRCLECI_TOKEN")) })
 
 	// CRM
 	r.Register("hubspot",    func() orchkit.Node { return nodes.NewHubSpot(os.Getenv("HUBSPOT_TOKEN")) })
-	r.Register("salesforce", func() orchkit.Node {
-		return nodes.NewSalesforce(os.Getenv("SALESFORCE_INSTANCE_URL"), os.Getenv("SALESFORCE_TOKEN"))
+	r.Register("salesforce", func() orchkit.Node { return nodes.NewSalesforce(os.Getenv("SALESFORCE_INSTANCE_URL"), os.Getenv("SALESFORCE_TOKEN")) })
+	r.Register("airtable",   func() orchkit.Node { return nodes.NewAirtable(os.Getenv("AIRTABLE_TOKEN"), os.Getenv("AIRTABLE_BASE_ID"), os.Getenv("AIRTABLE_TABLE")) })
+	r.Register("pipedrive",  func() orchkit.Node { return nodes.NewPipedrive(os.Getenv("PIPEDRIVE_TOKEN")) })
+
+	// Support
+	r.Register("zendesk", func() orchkit.Node {
+		return nodes.NewZendesk(os.Getenv("ZENDESK_SUBDOMAIN"), os.Getenv("ZENDESK_EMAIL"), os.Getenv("ZENDESK_TOKEN"))
 	})
-	r.Register("airtable", func() orchkit.Node {
-		return nodes.NewAirtable(os.Getenv("AIRTABLE_TOKEN"), os.Getenv("AIRTABLE_BASE_ID"), os.Getenv("AIRTABLE_TABLE"))
+
+	// Payments
+	r.Register("stripe", func() orchkit.Node { return nodes.NewStripe(os.Getenv("STRIPE_API_KEY")) })
+	r.Register("paypal", func() orchkit.Node {
+		return nodes.NewPayPal(os.Getenv("PAYPAL_CLIENT_ID"), os.Getenv("PAYPAL_CLIENT_SECRET"), false)
+	})
+
+	// Social
+	r.Register("reddit", func() orchkit.Node {
+		return nodes.NewReddit(os.Getenv("REDDIT_CLIENT_ID"), os.Getenv("REDDIT_CLIENT_SECRET"), os.Getenv("REDDIT_USERNAME"), os.Getenv("REDDIT_PASSWORD"))
 	})
 
 	// Productivity
-	r.Register("google_sheets", func() orchkit.Node {
-		return nodes.NewGoogleSheets(os.Getenv("GOOGLE_TOKEN"), os.Getenv("GOOGLE_SPREADSHEET_ID"))
-	})
-	r.Register("gmail",  func() orchkit.Node { return nodes.NewGmail(os.Getenv("GOOGLE_TOKEN")) })
-	r.Register("notion", func() orchkit.Node { return nodes.NewNotion(os.Getenv("NOTION_TOKEN")) })
-	r.Register("cron",   func() orchkit.Node { return nodes.NewCron("") })
+	r.Register("google_sheets", func() orchkit.Node { return nodes.NewGoogleSheets(os.Getenv("GOOGLE_TOKEN"), os.Getenv("GOOGLE_SPREADSHEET_ID")) })
+	r.Register("gmail",         func() orchkit.Node { return nodes.NewGmail(os.Getenv("GOOGLE_TOKEN")) })
+	r.Register("notion",        func() orchkit.Node { return nodes.NewNotion(os.Getenv("NOTION_TOKEN")) })
+	r.Register("cron",          func() orchkit.Node { return nodes.NewCron("") })
+	r.Register("zoom",          func() orchkit.Node { return nodes.NewZoom(os.Getenv("ZOOM_TOKEN")) })
+	r.Register("wordpress",     func() orchkit.Node { return nodes.NewWordPress(os.Getenv("WORDPRESS_URL"), os.Getenv("WORDPRESS_USER"), os.Getenv("WORDPRESS_PASS")) })
+	r.Register("trello",        func() orchkit.Node { return nodes.NewTrello(os.Getenv("TRELLO_API_KEY"), os.Getenv("TRELLO_TOKEN")) })
+	r.Register("shopify",       func() orchkit.Node { return nodes.NewShopify(os.Getenv("SHOPIFY_STORE"), os.Getenv("SHOPIFY_TOKEN")) })
+	r.Register("mailchimp",     func() orchkit.Node { return nodes.NewMailchimp(os.Getenv("MAILCHIMP_API_KEY"), os.Getenv("MAILCHIMP_SERVER")) })
 
-	// AI/LLM — credentials from environment
+	// Task Management
+	r.Register("asana",   func() orchkit.Node { return nodes.NewAsana(os.Getenv("ASANA_TOKEN")) })
+	r.Register("clickup", func() orchkit.Node { return nodes.NewClickUp(os.Getenv("CLICKUP_TOKEN")) })
+	r.Register("todoist", func() orchkit.Node { return nodes.NewTodoist(os.Getenv("TODOIST_TOKEN")) })
+
+	// AI/LLM
 	r.Register("llm",        func() orchkit.Node { return nodes.NewLLM(os.Getenv("ANTHROPIC_API_KEY"), "") })
 	r.Register("llm_groq",   func() orchkit.Node { return nodes.NewGroqLLM(os.Getenv("GROQ_API_KEY"), "") })
 	r.Register("llm_gemini", func() orchkit.Node { return nodes.NewGeminiLLM(os.Getenv("GEMINI_API_KEY"), "") })
 	r.Register("openai",     func() orchkit.Node { return nodes.NewOpenAI(os.Getenv("OPENAI_API_KEY"), "") })
 
-	// Commerce & Productivity
-	r.Register("whatsapp",  func() orchkit.Node { return nodes.NewWhatsApp(os.Getenv("WHATSAPP_TOKEN"), os.Getenv("WHATSAPP_PHONE_ID")) })
-	r.Register("twitter",   func() orchkit.Node { return nodes.NewTwitter(os.Getenv("TWITTER_BEARER_TOKEN")) })
-	r.Register("shopify",   func() orchkit.Node { return nodes.NewShopify(os.Getenv("SHOPIFY_STORE"), os.Getenv("SHOPIFY_TOKEN")) })
-	r.Register("mailchimp", func() orchkit.Node { return nodes.NewMailchimp(os.Getenv("MAILCHIMP_API_KEY"), os.Getenv("MAILCHIMP_SERVER")) })
-	r.Register("zoom",      func() orchkit.Node { return nodes.NewZoom(os.Getenv("ZOOM_TOKEN")) })
-	r.Register("wordpress", func() orchkit.Node { return nodes.NewWordPress(os.Getenv("WORDPRESS_URL"), os.Getenv("WORDPRESS_USER"), os.Getenv("WORDPRESS_PASS")) })
-	r.Register("trello",    func() orchkit.Node { return nodes.NewTrello(os.Getenv("TRELLO_API_KEY"), os.Getenv("TRELLO_TOKEN")) })
+	// Data/Weather/Media
+	r.Register("openweather", func() orchkit.Node { return nodes.NewOpenWeather(os.Getenv("OPENWEATHER_API_KEY")) })
+	r.Register("spotify",     func() orchkit.Node { return nodes.NewSpotify(os.Getenv("SPOTIFY_TOKEN")) })
 
 	// Utilities
 	r.Register("delay",    func() orchkit.Node { return nodes.NewDelay(0) })
@@ -104,5 +125,3 @@ func buildRegistry() *orchkit.Registry {
 
 	return r
 }
-
-func init() {} // ensure file is valid

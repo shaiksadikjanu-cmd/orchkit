@@ -9,7 +9,7 @@ steps:
   - id: write_post
     node: llm_groq
     input:
-      prompt: "Write a short blog post about today's top tech news from Hacker News. Be engaging and informative."
+      prompt: "Write a blog post about these real HN stories today. Use the actual titles: ${fetch_news.feed_title}"
       max_tokens: 800
 
   - id: save
