@@ -377,3 +377,136 @@ type Store interface {
 	Put(ctx context.Context, key string, val any) error
 	Snapshot(ctx context.Context) (map[string]any, error)
 }
+
+// ----------------------------------------------------------------------------
+// Branch — routes to one of two sub-flows based on a condition.
+// Use inside a flow as a single step via BranchNode.
+//
+// Example:
+//
+//	flow.Step("route", orchkit.NewBranchNode(
+//	    func(in orchkit.Input) bool { return in["status"] == float64(200) },
+//	    successFlow,
+//	    failureFlow,
+//	))
+// ----------------------------------------------------------------------------
+
+type BranchNode struct {
+	cond     func(Input) bool
+	onTrue   *Flow
+	onFalse  *Flow
+	store    Store
+}
+
+func NewBranchNode(cond func(Input) bool, onTrue, onFalse *Flow) *BranchNode {
+	return &BranchNode{cond: cond, onTrue: onTrue, onFalse: onFalse}
+}
+
+func (b *BranchNode) Name() string { return "branch" }
+func (b *BranchNode) Schema() Schema {
+	return Schema{Description: "Routes execution to one of two sub-flows based on a condition."}
+}
+func (b *BranchNode) Execute(ctx context.Context, in Input) (Output, error) {
+	store := b.store
+	if store == nil {
+		store = NewMemStore()
+	}
+	for k, v := range in {
+		if err := store.Put(ctx, k, v); err != nil {
+			return nil, err
+		}
+	}
+	flow := b.onTrue
+	if !b.cond(in) {
+		flow = b.onFalse
+	}
+	if flow == nil {
+		return Output{}, nil
+	}
+	return Run(ctx, flow, store)
+}
+
+// ----------------------------------------------------------------------------
+// LoopNode — runs a node repeatedly until a condition is met or max iterations.
+//
+// Example:
+//
+//	orchkit.NewLoopNode(pollNode, func(out orchkit.Output) bool {
+//	    return out["status"] == "ready"
+//	}, 10)
+// ----------------------------------------------------------------------------
+
+type LoopNode struct {
+	node      Node
+	until     func(Output) bool
+	maxIter   int
+	delay     time.Duration
+}
+
+func NewLoopNode(node Node, until func(Output) bool, maxIter int) *LoopNode {
+	return &LoopNode{node: node, until: until, maxIter: maxIter}
+}
+
+// WithDelay sets a pause between iterations.
+func (l *LoopNode) WithDelay(d time.Duration) *LoopNode {
+	l.delay = d
+	return l
+}
+
+func (l *LoopNode) Name() string { return "loop" }
+func (l *LoopNode) Schema() Schema {
+	return Schema{Description: "Runs a node repeatedly until a condition is met or max iterations reached."}
+}
+func (l *LoopNode) Execute(ctx context.Context, in Input) (Output, error) {
+	maxIter := l.maxIter
+	if maxIter <= 0 {
+		maxIter = 100 // safety cap
+	}
+	var lastOut Output
+	for i := 0; i < maxIter; i++ {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("loop: context cancelled after %d iterations: %w", i, ctx.Err())
+		default:
+		}
+
+		out, err := l.node.Execute(ctx, in)
+		if err != nil {
+			return nil, fmt.Errorf("loop iteration %d: %w", i+1, err)
+		}
+		lastOut = out
+
+		if l.until != nil && l.until(out) {
+			lastOut["iterations"] = i + 1
+			return lastOut, nil
+		}
+
+		if l.delay > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("loop: context cancelled during delay: %w", ctx.Err())
+			case <-time.After(l.delay):
+			}
+		}
+	}
+	return nil, fmt.Errorf("loop: exceeded max iterations (%d)", maxIter)
+}
+
+// ----------------------------------------------------------------------------
+// RunWithSignal — graceful shutdown. Listens for OS signals and cancels
+// the flow context cleanly, letting the current step finish.
+//
+// Usage:
+//
+//	state, err := orchkit.RunWithSignal(flow, store)
+// ----------------------------------------------------------------------------
+
+func RunWithSignal(flow *Flow, store Store, opts ...RunOptions) (map[string]any, error) {
+	return RunWithSignalContext(context.Background(), flow, store, opts...)
+}
+
+func RunWithSignalContext(parent context.Context, flow *Flow, store Store, opts ...RunOptions) (map[string]any, error) {
+	ctx, stop := signalContext(parent)
+	defer stop()
+	return Run(ctx, flow, store, opts...)
+}
