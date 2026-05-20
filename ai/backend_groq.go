@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-// groqBackend drives the agent loop via Groq's OpenAI-compatible API.
-// Free tier: console.groq.com — supports tool-use with Llama 3.3.
 type groqBackend struct {
 	apiKey string
 	model  string
@@ -23,7 +21,6 @@ func (g *groqBackend) chat(ctx context.Context, system string, maxTokens int, to
 		g.client = &http.Client{Timeout: 60 * time.Second}
 	}
 
-	// Build messages array.
 	msgs := []map[string]any{}
 	if system != "" {
 		msgs = append(msgs, map[string]any{"role": "system", "content": system})
@@ -66,7 +63,6 @@ func (g *groqBackend) chat(ctx context.Context, system string, maxTokens int, to
 		}
 	}
 
-	// Build tools array (OpenAI format).
 	apiTools := []map[string]any{}
 	for _, t := range tools {
 		apiTools = append(apiTools, map[string]any{
@@ -81,7 +77,7 @@ func (g *groqBackend) chat(ctx context.Context, system string, maxTokens int, to
 
 	body := map[string]any{
 		"model":      g.model,
-		"max_tokens": maxTokens,
+		"max_tokens": 512,
 		"messages":   msgs,
 	}
 	if len(apiTools) > 0 {
@@ -89,23 +85,42 @@ func (g *groqBackend) chat(ctx context.Context, system string, maxTokens int, to
 	}
 
 	raw, _ := json.Marshal(body)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"https://api.groq.com/openai/v1/chat/completions", bytes.NewReader(raw))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("content-type", "application/json")
-	req.Header.Set("authorization", "Bearer "+g.apiKey)
 
-	resp, err := g.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	// Retry up to 3 times on 429 with backoff.
+	var respBody []byte
+	var statusCode int
+	for attempt := 1; attempt <= 3; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+			"https://api.groq.com/openai/v1/chat/completions", bytes.NewReader(raw))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("content-type", "application/json")
+		req.Header.Set("authorization", "Bearer "+g.apiKey)
 
-	respBody, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("groq: api error %d: %s", resp.StatusCode, respBody)
+		resp, err := g.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		respBody, _ = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		statusCode = resp.StatusCode
+
+		if statusCode == 429 {
+			wait := time.Duration(attempt*15) * time.Second
+			fmt.Printf("groq: rate limited, waiting %s before retry %d/3...\n", wait, attempt)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(wait):
+				continue
+			}
+		}
+		break
+	}
+
+	if statusCode != http.StatusOK {
+		return nil, fmt.Errorf("groq: api error %d: %s", statusCode, respBody)
 	}
 
 	var parsed struct {

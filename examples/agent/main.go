@@ -13,8 +13,8 @@ import (
 )
 
 func main() {
-	groqKey   := os.Getenv("GROQ_API_KEY")
-	geminiKey := os.Getenv("GEMINI_API_KEY")
+	groqKey      := os.Getenv("GROQ_API_KEY")
+	geminiKey    := os.Getenv("GEMINI_API_KEY")
 	anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
 
 	if groqKey == "" && geminiKey == "" && anthropicKey == "" {
@@ -27,13 +27,20 @@ func main() {
 		GroqAPIKey:      groqKey,
 		GeminiAPIKey:    geminiKey,
 		AnthropicAPIKey: anthropicKey,
-		System: "You are a helpful agent. Use the tools available to complete tasks. Be concise.",
+		MaxTokens:       512,
+		System: `You are a precise tool-calling agent. Rules:
+- Always pass the exact string value from a previous tool's output, never modify it.
+- The http_get tool returns a JSON object with a "body" key containing a raw JSON string.
+- Pass that exact "body" string value to json_parse.
+- Never wrap values in b'...' or any other notation.`,
 		Nodes: []orchkit.Node{
 			nodes.NewHTTPGet(""),
 			nodes.NewJSONParse(""),
 			nodes.NewFSWrite(""),
 		},
-	}, "Fetch https://httpbin.org/json, parse the slideshow title, then write it to /tmp/orchkit-result.txt")
+	}, `Step 1: Call http_get with url="https://httpbin.org/json".
+Step 2: Take the exact string value of the "body" field from step 1's output. Pass it as "body" to json_parse with field="slideshow".
+Step 3: Take the "title" field from the parsed slideshow object. Write it as a string to /tmp/orchkit-result.txt using fs_write.`)
 
 	if err != nil {
 		log.Fatalf("agent failed: %v", err)
