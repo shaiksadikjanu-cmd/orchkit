@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Tool is a portable, JSON-serializable description of a Node.

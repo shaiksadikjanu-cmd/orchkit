@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Shell runs a shell command and returns stdout, stderr, and exit code.

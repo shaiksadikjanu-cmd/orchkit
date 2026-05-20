@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"text/template"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Template renders a Go text/template string using the flow state as data.
@@ -43,7 +43,7 @@ func (t *Template) Execute(_ context.Context, in orchkit.Input) (orchkit.Output,
 		return nil, fmt.Errorf("template: no template string provided")
 	}
 
-	tmpl, err := template.New("orchkit").Parse(tmplStr)
+	tmpl, err := template.New("github.com/shaiksadikjanu-cmd/orchkit").Parse(tmplStr)
 	if err != nil {
 		return nil, fmt.Errorf("template: parse: %w", err)
 	}

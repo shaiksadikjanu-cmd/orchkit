@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Airtable interacts with Airtable via the REST API.

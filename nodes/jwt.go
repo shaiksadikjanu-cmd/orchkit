@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // JWT signs and verifies JSON Web Tokens using HS256.

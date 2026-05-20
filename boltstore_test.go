@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 func tempDB(t *testing.T) (*orchkit.BoltStore, func()) {

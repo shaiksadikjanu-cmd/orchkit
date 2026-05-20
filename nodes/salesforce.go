@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Salesforce interacts with Salesforce via the REST API.

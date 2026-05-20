@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Zoom interacts with the Zoom API v2.

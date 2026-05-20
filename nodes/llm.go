@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // LLM calls the Anthropic /v1/messages endpoint.

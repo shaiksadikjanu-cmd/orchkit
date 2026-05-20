@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	_ "github.com/go-sql-driver/mysql"
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // MySQL executes queries against a MySQL or MariaDB database.

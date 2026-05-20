@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"testing"
 
-	"orchkit"
-	"orchkit/ai"
+	"github.com/shaiksadikjanu-cmd/orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit/ai"
 )
 
 // fakeNode for MCP tests — no real I/O
@@ -68,7 +68,7 @@ func TestMCP_Initialize(t *testing.T) {
 		t.Fatalf("wrong protocol version: %v", result["protocolVersion"])
 	}
 	info, _ := result["serverInfo"].(map[string]any)
-	if info["name"] != "orchkit" {
+	if info["name"] != "github.com/shaiksadikjanu-cmd/orchkit" {
 		t.Fatalf("wrong server name: %v", info["name"])
 	}
 }

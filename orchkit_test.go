@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // ----------------------------------------------------------------------------

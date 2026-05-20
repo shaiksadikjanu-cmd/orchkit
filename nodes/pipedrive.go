@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Pipedrive manages deals and contacts via Pipedrive CRM API v1.

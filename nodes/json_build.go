@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // JSONBuild constructs a JSON object from selected input keys.

@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"orchkit"
-	"orchkit/nodes"
+	"github.com/shaiksadikjanu-cmd/orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit/nodes"
 )
 
 func buildRegistry() *orchkit.Registry {

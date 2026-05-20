@@ -8,7 +8,7 @@ import (
 	"net/smtp"
 	"strings"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // SMTP sends an email via any SMTP server.

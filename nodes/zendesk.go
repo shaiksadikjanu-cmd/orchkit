@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Zendesk manages support tickets via Zendesk API v2.

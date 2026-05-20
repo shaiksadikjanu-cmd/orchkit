@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	_ "github.com/lib/pq"
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Postgres executes queries against a PostgreSQL database.

@@ -1,4 +1,4 @@
-module orchkit
+module github.com/shaiksadikjanu-cmd/orchkit
 
 go 1.22
 

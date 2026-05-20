@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Mailchimp manages email marketing via Mailchimp API v3.
@@ -94,7 +94,7 @@ func (m *Mailchimp) Execute(ctx context.Context, in orchkit.Input) (orchkit.Outp
 			},
 			"settings": map[string]any{
 				"subject_line": subject,
-				"from_name":    "orchkit",
+				"from_name":    "github.com/shaiksadikjanu-cmd/orchkit",
 				"reply_to":     "noreply@example.com",
 			},
 		}

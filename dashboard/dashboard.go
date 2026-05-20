@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Dashboard is a lightweight web UI for orchkit.

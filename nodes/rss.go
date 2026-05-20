@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // RSS fetches and parses an RSS or Atom feed.

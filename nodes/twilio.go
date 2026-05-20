@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Twilio sends SMS messages via the Twilio API.

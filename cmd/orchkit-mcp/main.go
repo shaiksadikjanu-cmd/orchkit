@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"orchkit/ai"
-	"orchkit/nodes"
+	"github.com/shaiksadikjanu-cmd/orchkit/ai"
+	"github.com/shaiksadikjanu-cmd/orchkit/nodes"
 )
 
 // orchkit-mcp is the MCP server binary.
@@ -19,7 +19,7 @@ import (
 //
 //   {
 //     "mcpServers": {
-//       "orchkit": {
+//       "github.com/shaiksadikjanu-cmd/orchkit": {
 //         "command": "/home/YOUR_USER/orchkit/orchkit-mcp"
 //       }
 //     }

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log"
 
-	"orchkit"
-	"orchkit/nodes"
+	"github.com/shaiksadikjanu-cmd/orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit/nodes"
 )
 
 // This example proves BoltStore survives restarts.

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Jira interacts with Jira Cloud via the REST API v3.

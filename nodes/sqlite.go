@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 	_ "modernc.org/sqlite"
 )
 

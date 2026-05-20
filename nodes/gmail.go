@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Gmail sends and reads emails via the Gmail API.

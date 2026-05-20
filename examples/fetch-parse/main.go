@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 
-	"orchkit"
-	"orchkit/ai"
-	"orchkit/nodes"
+	"github.com/shaiksadikjanu-cmd/orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit/ai"
+	"github.com/shaiksadikjanu-cmd/orchkit/nodes"
 )
 
 func main() {

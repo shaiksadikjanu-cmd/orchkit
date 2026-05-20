@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // ----------------------------------------------------------------------------

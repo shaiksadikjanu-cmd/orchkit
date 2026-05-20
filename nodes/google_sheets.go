@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // GoogleSheets reads and writes Google Sheets via the Sheets API v4.

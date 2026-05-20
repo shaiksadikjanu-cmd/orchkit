@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Spotify interacts with the Spotify Web API.

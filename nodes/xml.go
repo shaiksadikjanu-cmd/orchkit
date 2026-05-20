@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // XML parses an XML string into a map structure, or converts a map to XML.

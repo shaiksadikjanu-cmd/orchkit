@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"orchkit"
-	"orchkit/nodes"
+	"github.com/shaiksadikjanu-cmd/orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit/nodes"
 )
 
 // Health Monitor

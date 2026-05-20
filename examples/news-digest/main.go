@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
-	"orchkit/nodes"
+	"github.com/shaiksadikjanu-cmd/orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit/nodes"
 )
 
 // News Digest Agent

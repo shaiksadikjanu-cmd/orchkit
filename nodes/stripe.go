@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Stripe interacts with the Stripe API.

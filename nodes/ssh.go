@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // SSH runs commands on remote servers over SSH.

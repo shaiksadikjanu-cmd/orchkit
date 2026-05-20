@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Cron waits until the next occurrence of a cron schedule, then fires.

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Kafka produces or consumes messages from Apache Kafka.

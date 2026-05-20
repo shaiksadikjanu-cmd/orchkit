@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"orchkit/nodes"
+	"github.com/shaiksadikjanu-cmd/orchkit/nodes"
 )
 
 func TestHTTPGet_Success(t *testing.T) {
@@ -103,7 +103,7 @@ func TestHTTPGet_Schema(t *testing.T) {
 func TestJSONParse_FullObject(t *testing.T) {
 	node := nodes.NewJSONParse("")
 	out, err := node.Execute(context.Background(), map[string]any{
-		"body": `{"name":"orchkit","version":1}`,
+		"body": `{"name":"github.com/shaiksadikjanu-cmd/orchkit","version":1}`,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -112,7 +112,7 @@ func TestJSONParse_FullObject(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected map, got %T", out["value"])
 	}
-	if m["name"] != "orchkit" {
+	if m["name"] != "github.com/shaiksadikjanu-cmd/orchkit" {
 		t.Fatalf("expected name=orchkit, got %v", m["name"])
 	}
 }
@@ -420,7 +420,7 @@ func TestFlow_WriteRead_Integration(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "flow-output.json")
 
-	payload, _ := json.Marshal(map[string]any{"built": "orchkit", "works": true})
+	payload, _ := json.Marshal(map[string]any{"built": "github.com/shaiksadikjanu-cmd/orchkit", "works": true})
 
 	write := nodes.NewFSWrite(path)
 	out, err := write.Execute(context.Background(), map[string]any{
@@ -443,7 +443,7 @@ func TestFlow_WriteRead_Integration(t *testing.T) {
 	if err := json.Unmarshal([]byte(out2["content"].(string)), &result); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if result["built"] != "orchkit" {
+	if result["built"] != "github.com/shaiksadikjanu-cmd/orchkit" {
 		t.Fatalf("expected built=orchkit, got %v", result["built"])
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Delay pauses execution for a fixed duration.

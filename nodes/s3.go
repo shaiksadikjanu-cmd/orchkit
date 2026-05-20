@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // S3 performs operations against AWS S3 or any S3-compatible store.

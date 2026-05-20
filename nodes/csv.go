@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // CSVRead reads a CSV file and returns rows as a slice of maps.

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Markdown converts Markdown text to HTML.

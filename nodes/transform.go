@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // JSONParse parses a JSON string into a map and optionally extracts a single field.

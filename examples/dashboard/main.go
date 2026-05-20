@@ -8,9 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"orchkit"
-	"orchkit/dashboard"
-	"orchkit/nodes"
+	"github.com/shaiksadikjanu-cmd/orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit/dashboard"
+	"github.com/shaiksadikjanu-cmd/orchkit/nodes"
 )
 
 func main() {

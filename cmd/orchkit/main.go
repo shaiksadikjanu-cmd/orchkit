@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 const usage = `◆ orchkit — composable orchestration kernel

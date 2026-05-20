@@ -7,7 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // MongoDB executes operations against MongoDB.

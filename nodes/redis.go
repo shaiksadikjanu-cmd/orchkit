@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Redis executes GET, SET, DEL, LPUSH, RPOP commands against a Redis server.

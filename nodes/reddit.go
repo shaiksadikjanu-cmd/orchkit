@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // Reddit interacts with the Reddit API.
@@ -142,7 +142,7 @@ func (r *Reddit) ensureToken(ctx context.Context) error {
 	}
 	req.SetBasicAuth(r.ClientID, r.ClientSecret)
 	req.Header.Set("content-type", "application/x-www-form-urlencoded")
-	req.Header.Set("user-agent", "orchkit/1.0")
+	req.Header.Set("user-agent", "github.com/shaiksadikjanu-cmd/orchkit/1.0")
 
 	resp, err := r.client.Do(req)
 	if err != nil {
@@ -168,7 +168,7 @@ func (r *Reddit) get(ctx context.Context, url string) (orchkit.Output, error) {
 
 func (r *Reddit) do(req *http.Request) (orchkit.Output, error) {
 	req.Header.Set("authorization", "Bearer "+r.accessToken)
-	req.Header.Set("user-agent", "orchkit/1.0")
+	req.Header.Set("user-agent", "github.com/shaiksadikjanu-cmd/orchkit/1.0")
 	if req.Header.Get("content-type") == "" {
 		req.Header.Set("content-type", "application/json")
 	}

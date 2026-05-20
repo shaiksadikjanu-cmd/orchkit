@@ -10,7 +10,7 @@ import (
 	"time"
 	"os"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // ----------------------------------------------------------------------------
@@ -28,7 +28,7 @@ import (
 // Wire it up in Claude Desktop's config:
 //   {
 //     "mcpServers": {
-//       "orchkit": {
+//       "github.com/shaiksadikjanu-cmd/orchkit": {
 //         "command": "/path/to/orchkit-mcp"
 //       }
 //     }
@@ -130,7 +130,7 @@ func (s *MCPServer) handleInitialize(req *jsonRPCRequest) *jsonRPCResponse {
 				"tools": map[string]any{},
 			},
 			"serverInfo": map[string]any{
-				"name":    "orchkit",
+				"name":    "github.com/shaiksadikjanu-cmd/orchkit",
 				"version": "0.1.0",
 			},
 		},

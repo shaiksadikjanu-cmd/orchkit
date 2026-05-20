@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"orchkit"
+	"github.com/shaiksadikjanu-cmd/orchkit"
 )
 
 // OpenWeather fetches weather data via OpenWeatherMap API.

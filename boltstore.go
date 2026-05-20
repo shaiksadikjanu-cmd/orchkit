@@ -21,7 +21,7 @@ type BoltStore struct {
 	bucket []byte
 }
 
-var defaultBucket = []byte("orchkit")
+var defaultBucket = []byte("github.com/shaiksadikjanu-cmd/orchkit")
 
 // NewBoltStore opens (or creates) a bbolt database at the given path.
 // Call Close() when done.
