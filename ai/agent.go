@@ -1,49 +1,39 @@
 package ai
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"time"
 
 	"orchkit"
 )
 
 // ----------------------------------------------------------------------------
-// Agent — a tool-use loop that lets Claude drive your nodes.
+// Agent — a tool-use loop driven by any supported backend.
 //
-// How it works:
-//  1. You give Agent a task (plain English) and a list of nodes.
-//  2. Agent converts the nodes to tools and sends them to Claude.
-//  3. Claude either responds with text (done) or calls a tool (node).
-//  4. Agent executes the node, feeds the result back to Claude.
-//  5. Repeat until Claude stops calling tools.
-//
-// The loop is deliberately simple. No streaming, no parallel tool calls,
-// no memory between runs. Add those only when you actually need them.
+// Backends: Groq (free, OpenAI-compatible), Gemini, Anthropic.
+// Set whichever API key you have. Groq is recommended for free tier.
 // ----------------------------------------------------------------------------
 
-// AgentConfig holds everything the agent needs. No global state.
 type AgentConfig struct {
-	APIKey    string
-	Model     string
-	MaxTokens int
-	MaxTurns  int       // safety cap — stops infinite loops
+	// Set one of these — whichever you have.
+	GroqAPIKey     string
+	GeminiAPIKey   string
+	AnthropicAPIKey string
+
+	Model     string         // optional: override default model per backend
+	MaxTokens int            // defaults to 4096
+	MaxTurns  int            // safety cap, defaults to 10
 	Nodes     []orchkit.Node
-	System    string    // optional system prompt
+	System    string
 }
 
-// Result is what the agent returns when it's done.
 type Result struct {
-	Text  string            // Claude's final text response
-	Turns int               // how many tool-call rounds happened
-	Calls []ToolCallRecord  // every node call that was made
+	Text  string
+	Turns int
+	Calls []ToolCallRecord
 }
 
-// ToolCallRecord logs one node execution for inspection.
 type ToolCallRecord struct {
 	Node   string
 	Input  orchkit.Input
@@ -51,14 +41,8 @@ type ToolCallRecord struct {
 	Err    error
 }
 
-// Run executes the agent loop.
+// Run picks the available backend and executes the agent loop.
 func Run(ctx context.Context, cfg AgentConfig, task string) (*Result, error) {
-	if cfg.APIKey == "" {
-		return nil, fmt.Errorf("agent: APIKey is required")
-	}
-	if cfg.Model == "" {
-		cfg.Model = "claude-sonnet-4-20250514"
-	}
 	if cfg.MaxTokens == 0 {
 		cfg.MaxTokens = 4096
 	}
@@ -66,54 +50,59 @@ func Run(ctx context.Context, cfg AgentConfig, task string) (*Result, error) {
 		cfg.MaxTurns = 10
 	}
 
-	tools := Tools(cfg.Nodes...)
-	client := &http.Client{Timeout: 60 * time.Second}
-
-	// messages is the full conversation history sent on every turn.
-	messages := []map[string]any{
-		{"role": "user", "content": task},
+	var backend backend
+	switch {
+	case cfg.GroqAPIKey != "":
+		model := cfg.Model
+		if model == "" {
+			model = "llama-3.3-70b-versatile"
+		}
+		backend = &groqBackend{apiKey: cfg.GroqAPIKey, model: model}
+	case cfg.GeminiAPIKey != "":
+		model := cfg.Model
+		if model == "" {
+			model = "gemini-2.0-flash"
+		}
+		backend = &geminiBackend{apiKey: cfg.GeminiAPIKey, model: model}
+	case cfg.AnthropicAPIKey != "":
+		model := cfg.Model
+		if model == "" {
+			model = "claude-sonnet-4-20250514"
+		}
+		backend = &anthropicBackend{apiKey: cfg.AnthropicAPIKey, model: model}
+	default:
+		return nil, fmt.Errorf("agent: set at least one of GroqAPIKey, GeminiAPIKey, AnthropicAPIKey")
 	}
 
+	tools := Tools(cfg.Nodes...)
 	result := &Result{}
 
+	// Seed the conversation.
+	history := []message{
+		{Role: "user", Text: task},
+	}
+
 	for turn := 0; turn < cfg.MaxTurns; turn++ {
-		resp, err := callClaude(ctx, client, cfg, tools, messages)
+		resp, err := backend.chat(ctx, cfg.System, cfg.MaxTokens, tools, history)
 		if err != nil {
 			return nil, fmt.Errorf("agent turn %d: %w", turn+1, err)
 		}
 
-		// Append Claude's response to history.
-		messages = append(messages, map[string]any{
-			"role":    "assistant",
-			"content": resp.Content,
-		})
+		history = append(history, message{Role: "assistant", Text: resp.text, ToolCalls: resp.toolCalls})
 
-		// Check what Claude wants to do.
-		toolCalls := extractToolCalls(resp.Content)
-
-		if len(toolCalls) == 0 {
-			// No tool calls — Claude is done. Extract the final text.
+		if len(resp.toolCalls) == 0 {
+			result.Text = resp.text
 			result.Turns = turn + 1
-			for _, block := range resp.Content {
-				if block["type"] == "text" {
-					result.Text += fmt.Sprint(block["text"])
-				}
-			}
 			return result, nil
 		}
 
-		// Execute every tool call Claude requested and collect results.
-		toolResults := []map[string]any{}
-		for _, call := range toolCalls {
-			out, err := Dispatch(ctx, cfg.Nodes, call.name, call.input)
-
-			record := ToolCallRecord{
-				Node:   call.name,
-				Input:  call.input,
-				Output: out,
-				Err:    err,
-			}
-			result.Calls = append(result.Calls, record)
+		// Execute each tool call and collect results.
+		var toolResults []toolResult
+		for _, call := range resp.toolCalls {
+			out, err := Dispatch(ctx, cfg.Nodes, call.Name, call.Input)
+			result.Calls = append(result.Calls, ToolCallRecord{
+				Node: call.Name, Input: call.Input, Output: out, Err: err,
+			})
 
 			content := ""
 			if err != nil {
@@ -122,105 +111,42 @@ func Run(ctx context.Context, cfg AgentConfig, task string) (*Result, error) {
 				b, _ := json.Marshal(out)
 				content = string(b)
 			}
-
-			toolResults = append(toolResults, map[string]any{
-				"type":        "tool_result",
-				"tool_use_id": call.id,
-				"content":     content,
-			})
+			toolResults = append(toolResults, toolResult{ID: call.ID, Content: content})
 		}
 
-		// Feed tool results back as a user turn.
-		messages = append(messages, map[string]any{
-			"role":    "user",
-			"content": toolResults,
-		})
+		history = append(history, message{Role: "tool", ToolResults: toolResults})
 	}
 
 	return nil, fmt.Errorf("agent: exceeded max turns (%d)", cfg.MaxTurns)
 }
 
 // ----------------------------------------------------------------------------
-// Internal helpers
+// Internal types shared across backends.
 // ----------------------------------------------------------------------------
 
-type claudeResponse struct {
-	Content    []map[string]any `json:"content"`
-	StopReason string           `json:"stop_reason"`
+type toolCallRequest struct {
+	ID    string
+	Name  string
+	Input orchkit.Input
 }
 
-type toolCall struct {
-	id    string
-	name  string
-	input orchkit.Input
+type toolResult struct {
+	ID      string
+	Content string
 }
 
-func callClaude(ctx context.Context, client *http.Client, cfg AgentConfig, tools []Tool, messages []map[string]any) (*claudeResponse, error) {
-	// Convert tools to the shape Anthropic expects.
-	apiTools := make([]map[string]any, len(tools))
-	for i, t := range tools {
-		apiTools[i] = map[string]any{
-			"name":         t.Name,
-			"description":  t.Description,
-			"input_schema": t.InputSchema,
-		}
-	}
-
-	body := map[string]any{
-		"model":      cfg.Model,
-		"max_tokens": cfg.MaxTokens,
-		"tools":      apiTools,
-		"messages":   messages,
-	}
-	if cfg.System != "" {
-		body["system"] = cfg.System
-	}
-
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"https://api.anthropic.com/v1/messages", bytes.NewReader(raw))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("content-type", "application/json")
-	req.Header.Set("x-api-key", cfg.APIKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("api error %d: %s", resp.StatusCode, respBody)
-	}
-
-	var parsed claudeResponse
-	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return nil, err
-	}
-	return &parsed, nil
+type message struct {
+	Role        string            // user | assistant | tool
+	Text        string
+	ToolCalls   []toolCallRequest
+	ToolResults []toolResult
 }
 
-func extractToolCalls(content []map[string]any) []toolCall {
-	var calls []toolCall
-	for _, block := range content {
-		if block["type"] != "tool_use" {
-			continue
-		}
-		id, _ := block["id"].(string)
-		name, _ := block["name"].(string)
-		input, _ := block["input"].(map[string]any)
-		calls = append(calls, toolCall{id: id, name: name, input: input})
-	}
-	return calls
+type chatResponse struct {
+	text      string
+	toolCalls []toolCallRequest
+}
+
+type backend interface {
+	chat(ctx context.Context, system string, maxTokens int, tools []Tool, history []message) (*chatResponse, error)
 }
