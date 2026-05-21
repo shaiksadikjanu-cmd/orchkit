@@ -442,7 +442,7 @@ func runAgent(ctx context.Context, groqKey, geminiKey, anthropicKey string, node
 	messages := []map[string]any{
 		{
 			"role":    "system",
-			"content": "You are an orchestration agent. You MUST use tools to complete tasks. Never answer from memory. Always call a tool first to get real data, then report results. Available tools fetch real data from the internet and other services.",
+			"content": "You are an orchestration agent. Rules: 1) Always use tools to get real data, never answer from memory. 2) When saving to a file with fs_write, the 'content' field must be a plain text string built from the actual tool results you received - never use template syntax like {{.field}}. 3) Chain tools: first fetch data, then process or save it using the actual values returned.",
 		},
 		{
 			"role":    "user",
