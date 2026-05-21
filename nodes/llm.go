@@ -47,7 +47,7 @@ func (l *LLM) Schema() orchkit.Schema {
 				"desc": "Optional system prompt.",
 			},
 			"max_tokens": map[string]any{
-				"type": "integer",
+				"type": "number",
 				"desc": "Max tokens to generate. Defaults to 1024.",
 			},
 		},

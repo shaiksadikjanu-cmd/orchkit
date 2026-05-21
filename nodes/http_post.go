@@ -41,7 +41,7 @@ func (h *HTTPPost) Schema() orchkit.Schema {
 		Description: "Sends an HTTP POST/PUT/PATCH request with a JSON or string body.",
 		Params: map[string]any{
 			"url":    map[string]any{"type": "string", "desc": "URL to send request to."},
-			"body":   map[string]any{"type": "any", "desc": "Request body. Object = JSON, string = raw."},
+			"body":   map[string]any{"type": "string", "desc": "Request body as JSON string or plain text."},
 			"method": map[string]any{"type": "string", "desc": "HTTP method: POST, PUT, PATCH. Defaults to POST."},
 		},
 	}

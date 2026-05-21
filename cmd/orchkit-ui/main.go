@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"io"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ func main() {
 	mux.HandleFunc("/", serveUI)
 	mux.HandleFunc("/api/nodes", apiNodes)
 	mux.HandleFunc("/api/run", apiRun)
+	mux.HandleFunc("/api/agent", apiAgent)
 	fmt.Printf("orchkit UI: http://localhost%s\n", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
@@ -290,3 +292,309 @@ func buildRegistry() *orchkit.Registry {
 // Keep unused import happy
 var _ = time.Second
 var _ = strings.Contains
+
+type AgentRequest struct {
+	Task  string `json:"task"`
+}
+
+func apiAgent(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", 405)
+		return
+	}
+
+	var req AgentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+
+	if req.Task == "" {
+		http.Error(w, "task is required", 400)
+		return
+	}
+
+	groqKey := os.Getenv("GROQ_API_KEY")
+	geminiKey := os.Getenv("GEMINI_API_KEY")
+	anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
+
+	if groqKey == "" && geminiKey == "" && anthropicKey == "" {
+		w.Header().Set("content-type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "No AI API key found. Set GROQ_API_KEY, GEMINI_API_KEY, or ANTHROPIC_API_KEY.",
+		})
+		return
+	}
+
+	// Build node list from registry
+	reg := registry.Build()
+	nodeList := make([]orchkit.Node, 0, len(reg))
+	for _, n := range reg {
+		nodeList = append(nodeList, n)
+	}
+
+	ctx := context.Background()
+
+	// Use the ai package agent loop
+	result, err := runAgent(ctx, groqKey, geminiKey, anthropicKey, nodeList, req.Task)
+
+	w.Header().Set("content-type", "application/json")
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"text":  result.Text,
+		"turns": result.Turns,
+		"calls": result.Calls,
+	})
+}
+
+func runAgent(ctx context.Context, groqKey, geminiKey, anthropicKey string, nodeList []orchkit.Node, task string) (*agentResult, error) {
+	type toolCall struct {
+		Name   string         `json:"name"`
+		Input  map[string]any `json:"input"`
+		Output map[string]any `json:"output"`
+		Error  string         `json:"error,omitempty"`
+	}
+
+	result := &agentResult{}
+
+	// Simple agent loop using Groq (primary free option)
+	apiKey := groqKey
+	apiURL := "https://api.groq.com/openai/v1/chat/completions"
+	model := "meta-llama/llama-4-scout-17b-16e-instruct"
+
+	if apiKey == "" && geminiKey != "" {
+		// Fall back to a simple Gemini call for now
+		apiKey = geminiKey
+	}
+	if apiKey == "" {
+		apiKey = anthropicKey
+	}
+
+	// Limit to 20 core tools — Llama struggles with 63 at once
+	coreTools := map[string]bool{
+		"http_get": true, "http_post": true, "json_parse": true, "json_build": true,
+		"rss": true, "fs_read": true, "fs_write": true, "shell": true,
+		"llm_groq": false, "llm_gemini": false, "llm": false, "openai": false,
+		"slack": true, "telegram": true, "discord": true, "github": true,
+		"sqlite": true, "csv_read": true, "template": true, "delay": true,
+	}
+	tools := []map[string]any{}
+	nodeMap := map[string]orchkit.Node{}
+	for _, n := range nodeList {
+		if !coreTools[n.Name()] {
+			continue
+		}
+		schema := n.Schema()
+		cleanParams := map[string]any{}
+		for k, v := range schema.Params {
+			if m, ok := v.(map[string]any); ok {
+				clean := map[string]any{}
+				for pk, pv := range m {
+					clean[pk] = pv
+				}
+				if t, ok := clean["type"].(string); ok {
+					switch t {
+					case "array", "boolean", "integer", "null", "number", "object", "string":
+					default:
+						clean["type"] = "string"
+					}
+				}
+				cleanParams[k] = clean
+			} else {
+				cleanParams[k] = v
+			}
+		}
+		// Override all numeric types to string — Groq model always sends numbers as strings
+		// We coerce back to numbers before Execute
+		agentParams := map[string]any{}
+		for k, v := range cleanParams {
+			if m, ok := v.(map[string]any); ok {
+				p := map[string]any{}
+				for pk, pv := range m { p[pk] = pv }
+				if t, _ := p["type"].(string); t == "number" || t == "integer" {
+					p["type"] = "string"
+				}
+				agentParams[k] = p
+			} else {
+				agentParams[k] = v
+			}
+		}
+		tools = append(tools, map[string]any{
+			"type": "function",
+			"function": map[string]any{
+				"name":        n.Name(),
+				"description": schema.Description,
+				"parameters": map[string]any{
+					"type":       "object",
+					"properties": agentParams,
+				},
+			},
+		})
+		nodeMap[n.Name()] = n
+	}
+
+	messages := []map[string]any{
+		{
+			"role":    "system",
+			"content": "You are an orchestration agent. You MUST use tools to complete tasks. Never answer from memory. Always call a tool first to get real data, then report results. Available tools fetch real data from the internet and other services.",
+		},
+		{
+			"role":    "user",
+			"content": task,
+		},
+	}
+
+	client := &http.Client{Timeout: 60 * time.Second}
+
+	for turn := 0; turn < 10; turn++ {
+		body := map[string]any{
+			"model":      model,
+			"messages":   messages,
+			"tools":      tools,
+			"max_tokens": 1024,
+		}
+		raw, _ := json.Marshal(body)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(string(raw)))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("content-type", "application/json")
+		req.Header.Set("authorization", "Bearer "+apiKey)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			return nil, fmt.Errorf("api error %d: %s", resp.StatusCode, respBody)
+		}
+
+		var parsed struct {
+			Choices []struct {
+				Message struct {
+					Content   *string `json:"content"`
+					ToolCalls []struct {
+						ID       string `json:"id"`
+						Function struct {
+							Name      string `json:"name"`
+							Arguments string `json:"arguments"`
+						} `json:"function"`
+					} `json:"tool_calls"`
+				} `json:"message"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal(respBody, &parsed); err != nil {
+			return nil, err
+		}
+		if len(parsed.Choices) == 0 {
+			return nil, fmt.Errorf("empty response")
+		}
+
+		msg := parsed.Choices[0].Message
+
+		// Append assistant message
+		assistantMsg := map[string]any{"role": "assistant"}
+		if msg.Content != nil {
+			assistantMsg["content"] = *msg.Content
+		} else {
+			assistantMsg["content"] = ""
+		}
+		if len(msg.ToolCalls) > 0 {
+			calls := []map[string]any{}
+			for _, tc := range msg.ToolCalls {
+				calls = append(calls, map[string]any{
+					"id":   tc.ID,
+					"type": "function",
+					"function": map[string]any{
+						"name":      tc.Function.Name,
+						"arguments": tc.Function.Arguments,
+					},
+				})
+			}
+			assistantMsg["tool_calls"] = calls
+		}
+		messages = append(messages, assistantMsg)
+
+		// No tool calls — done
+		if len(msg.ToolCalls) == 0 {
+			result.Turns = turn + 1
+			if msg.Content != nil {
+				result.Text = *msg.Content
+			}
+			return result, nil
+		}
+
+		// Execute tool calls
+		for _, tc := range msg.ToolCalls {
+			var input map[string]any
+			json.Unmarshal([]byte(tc.Function.Arguments), &input)
+
+			call := toolCall{Name: tc.Function.Name, Input: input}
+
+			node, ok := nodeMap[tc.Function.Name]
+			if !ok {
+				call.Error = "unknown node: " + tc.Function.Name
+			} else {
+				// Coerce string numbers to int/float based on schema
+			schema := node.Schema()
+			for k, v := range input {
+				if str, ok := v.(string); ok {
+					if p, ok := schema.Params[k].(map[string]any); ok {
+						if t, _ := p["type"].(string); t == "integer" || t == "number" || t == "int" {
+							var n float64
+							if _, err := fmt.Sscanf(str, "%f", &n); err == nil {
+								if t == "integer" {
+									input[k] = int(n)
+								} else {
+									input[k] = n
+								}
+							}
+						}
+					}
+				}
+			}
+			out, err := node.Execute(ctx, input)
+				if err != nil {
+					call.Error = err.Error()
+				} else {
+					call.Output = out
+				}
+			}
+
+			result.Calls = append(result.Calls, call)
+
+			// Feed result back
+			content := ""
+			if call.Error != "" {
+				content = "error: " + call.Error
+			} else {
+				b, _ := json.Marshal(call.Output)
+				content = string(b)
+			}
+
+			messages = append(messages, map[string]any{
+				"role":         "tool",
+				"tool_call_id": tc.ID,
+				"content":      content,
+			})
+		}
+	}
+
+	return nil, fmt.Errorf("exceeded max turns")
+}
+
+type agentResult struct {
+	Text  string `json:"text"`
+	Turns int    `json:"turns"`
+	Calls []any  `json:"calls"`
+}

@@ -42,7 +42,7 @@ func (o *OpenAI) Schema() orchkit.Schema {
 			"system":     map[string]any{"type": "string", "desc": "System prompt (chat only)."},
 			"action":     map[string]any{"type": "string", "desc": "chat | embed | image. Defaults to chat."},
 			"model":      map[string]any{"type": "string", "desc": "Model override e.g. gpt-4o, gpt-3.5-turbo."},
-			"max_tokens": map[string]any{"type": "integer", "desc": "Max tokens (chat). Default 1024."},
+			"max_tokens": map[string]any{"type": "number", "desc": "Max tokens (chat). Default 1024."},
 			"size":       map[string]any{"type": "string", "desc": "Image size (image): 1024x1024, 512x512. Default 1024x1024."},
 		},
 	}

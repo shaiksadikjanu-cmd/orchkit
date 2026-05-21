@@ -38,7 +38,7 @@ func (l *Linear) Schema() orchkit.Schema {
 			"description": map[string]any{"type": "string", "desc": "Issue description."},
 			"team_id":     map[string]any{"type": "string", "desc": "Team ID (create_issue)."},
 			"issue_id":    map[string]any{"type": "string", "desc": "Issue ID (get_issue, update_issue)."},
-			"priority":    map[string]any{"type": "integer", "desc": "Priority 0-4 (0=no, 1=urgent, 2=high, 3=medium, 4=low)."},
+			"priority":    map[string]any{"type": "number", "desc": "Priority 0-4 (0=no, 1=urgent, 2=high, 3=medium, 4=low)."},
 		},
 	}
 }

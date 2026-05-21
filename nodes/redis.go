@@ -38,7 +38,7 @@ func (r *Redis) Schema() orchkit.Schema {
 			"command": map[string]any{"type": "string", "desc": "Redis command: GET | SET | DEL | LPUSH | RPOP | EXPIRE | EXISTS"},
 			"key":     map[string]any{"type": "string", "desc": "Redis key."},
 			"value":   map[string]any{"type": "string", "desc": "Value (SET, LPUSH)."},
-			"ttl":     map[string]any{"type": "integer", "desc": "TTL in seconds (EXPIRE, or SET with expiry)."},
+			"ttl":     map[string]any{"type": "number", "desc": "TTL in seconds (EXPIRE, or SET with expiry)."},
 		},
 	}
 }

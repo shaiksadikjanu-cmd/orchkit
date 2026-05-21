@@ -43,7 +43,7 @@ func (s *Spotify) Schema() orchkit.Schema {
 			"id":          map[string]any{"type": "string", "desc": "Track or playlist ID."},
 			"uri":         map[string]any{"type": "string", "desc": "Spotify URI e.g. spotify:track:xxx (play, add_to_queue)."},
 			"device_id":   map[string]any{"type": "string", "desc": "Device ID for playback (optional)."},
-			"limit":       map[string]any{"type": "integer", "desc": "Max search results. Default 10."},
+			"limit":       map[string]any{"type": "number", "desc": "Max search results. Default 10."},
 		},
 	}
 }

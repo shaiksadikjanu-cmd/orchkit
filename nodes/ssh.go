@@ -41,7 +41,7 @@ func (s *SSH) Schema() orchkit.Schema {
 		Params: map[string]any{
 			"command":     map[string]any{"type": "string", "desc": "Shell command to run remotely."},
 			"address":     map[string]any{"type": "string", "desc": "user@host:port. Falls back to constructor."},
-			"timeout_sec": map[string]any{"type": "integer", "desc": "Connection timeout in seconds. Default 30."},
+			"timeout_sec": map[string]any{"type": "number", "desc": "Connection timeout in seconds. Default 30."},
 		},
 	}
 }

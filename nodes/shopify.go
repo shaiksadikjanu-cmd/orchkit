@@ -39,7 +39,7 @@ func (s *Shopify) Schema() orchkit.Schema {
 			"id":         map[string]any{"type": "string", "desc": "Product or order ID."},
 			"title":      map[string]any{"type": "string", "desc": "Product title (create_product)."},
 			"price":      map[string]any{"type": "string", "desc": "Product price e.g. '9.99' (create_product)."},
-			"limit":      map[string]any{"type": "integer", "desc": "Max results. Default 10."},
+			"limit":      map[string]any{"type": "number", "desc": "Max results. Default 10."},
 		},
 	}
 }

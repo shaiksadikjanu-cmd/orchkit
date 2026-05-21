@@ -36,7 +36,7 @@ func (m *MongoDB) Schema() orchkit.Schema {
 			"filter":     map[string]any{"type": "object", "desc": "MongoDB filter document."},
 			"document":   map[string]any{"type": "object", "desc": "Document to insert or update body."},
 			"update":     map[string]any{"type": "object", "desc": "Update operators e.g. {$set: {field: value}}."},
-			"limit":      map[string]any{"type": "integer", "desc": "Max documents to return (find). Default 100."},
+			"limit":      map[string]any{"type": "number", "desc": "Max documents to return (find). Default 100."},
 			"collection": map[string]any{"type": "string", "desc": "Collection name. Falls back to constructor."},
 		},
 	}

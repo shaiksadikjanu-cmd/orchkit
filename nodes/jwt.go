@@ -39,7 +39,7 @@ func (j *JWT) Schema() orchkit.Schema {
 			"action": map[string]any{"type": "string", "desc": "sign or verify."},
 			"claims": map[string]any{"type": "object", "desc": "Claims map to sign (action=sign)."},
 			"token":  map[string]any{"type": "string", "desc": "JWT token string to verify (action=verify)."},
-			"exp":    map[string]any{"type": "integer", "desc": "Expiry in seconds from now (action=sign). Default 3600."},
+			"exp":    map[string]any{"type": "number", "desc": "Expiry in seconds from now (action=sign). Default 3600."},
 		},
 	}
 }

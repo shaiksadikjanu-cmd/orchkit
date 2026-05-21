@@ -38,7 +38,7 @@ func (g *GitHub) Schema() orchkit.Schema {
 			"repo":   map[string]any{"type": "string", "desc": "Repository name."},
 			"title":  map[string]any{"type": "string", "desc": "Issue title (create_issue)."},
 			"body":   map[string]any{"type": "string", "desc": "Issue or comment body."},
-			"number": map[string]any{"type": "integer", "desc": "Issue number (create_comment)."},
+			"number": map[string]any{"type": "number", "desc": "Issue number (create_comment)."},
 		},
 	}
 }

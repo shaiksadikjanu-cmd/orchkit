@@ -44,7 +44,7 @@ func (a *Airtable) Schema() orchkit.Schema {
 			"record_id": map[string]any{"type": "string", "desc": "Airtable record ID (get, update, delete)."},
 			"fields":    map[string]any{"type": "object", "desc": "Field values map (create, update)."},
 			"filter":    map[string]any{"type": "string", "desc": "Airtable formula filter (list) e.g. {Status}='Active'."},
-			"limit":     map[string]any{"type": "integer", "desc": "Max records to return (list). Default 100."},
+			"limit":     map[string]any{"type": "number", "desc": "Max records to return (list). Default 100."},
 			"table":     map[string]any{"type": "string", "desc": "Table name. Falls back to constructor."},
 		},
 	}

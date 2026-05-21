@@ -38,7 +38,7 @@ func (r *RSS) Schema() orchkit.Schema {
 		Description: "Fetches and parses an RSS or Atom feed. Returns items with title, link, description, and date.",
 		Params: map[string]any{
 			"url":   map[string]any{"type": "string", "desc": "RSS or Atom feed URL."},
-			"limit": map[string]any{"type": "integer", "desc": "Max items to return. 0 = all."},
+			"limit": map[string]any{"type": "number", "desc": "Max items to return. 0 = all."},
 		},
 	}
 }

@@ -41,7 +41,7 @@ func (c *ClickUp) Schema() orchkit.Schema {
 			"name":     map[string]any{"type": "string", "desc": "Task name."},
 			"desc":     map[string]any{"type": "string", "desc": "Task description."},
 			"status":   map[string]any{"type": "string", "desc": "Task status e.g. 'in progress', 'complete'."},
-			"priority": map[string]any{"type": "integer", "desc": "Priority 1(urgent) to 4(low)."},
+			"priority": map[string]any{"type": "number", "desc": "Priority 1(urgent) to 4(low)."},
 		},
 	}
 }

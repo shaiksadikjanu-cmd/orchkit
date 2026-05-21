@@ -514,3 +514,98 @@ window.runFlow = async function() {
   document.getElementById('outputBody').innerHTML=out||'<pre>'+esc(JSON.stringify(result.state,null,2))+'</pre>';
 }
 </script>
+<style>
+.agent-panel{position:fixed;bottom:0;right:0;width:420px;background:var(--surface);border-left:1px solid var(--border);border-top:1px solid var(--border);border-radius:8px 0 0 0;z-index:999;display:flex;flex-direction:column;transition:height .2s}
+.agent-panel.open{height:420px}
+.agent-panel.closed{height:44px}
+.agent-header{padding:0 16px;height:44px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:8px 0 0 0}
+.agent-header span{color:var(--accent2);font-weight:600;font-size:13px}
+.agent-body{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:12px}
+.agent-log{flex:1;overflow-y:auto;margin-bottom:10px;font-size:11px;line-height:1.6}
+.agent-log .msg-user{color:var(--text2);margin-bottom:6px}
+.agent-log .msg-agent{color:var(--text);margin-bottom:6px}
+.agent-log .msg-tool{color:var(--accent2);margin-bottom:4px;font-size:10px}
+.agent-log .msg-err{color:var(--red);margin-bottom:4px;font-size:10px}
+.agent-input-row{display:flex;gap:8px}
+.agent-input-row input{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:5px;font-size:12px;font-family:inherit}
+.agent-input-row input:focus{outline:none;border-color:var(--accent)}
+.agent-thinking{color:var(--yellow);font-size:11px;margin-bottom:6px}
+</style>
+
+<div class="agent-panel closed" id="agentPanel">
+  <div class="agent-header" onclick="toggleAgent()">
+    <span>&#9670; AI Agent</span>
+    <span style="color:var(--text3);font-size:11px" id="agentStatus">Click to open</span>
+    <div style="margin-left:auto;color:var(--text3)" id="agentToggleIcon">&#9650;</div>
+  </div>
+  <div class="agent-body" id="agentBody" style="display:none">
+    <div class="agent-log" id="agentLog">
+      <div style="color:var(--text3);font-size:11px">Tell the AI agent what to do. It will use orchkit nodes to complete your task automatically.</div>
+    </div>
+    <div class="agent-input-row">
+      <input type="text" id="agentInput" placeholder='e.g. "Fetch HN top stories and summarize them"' onkeydown="if(event.key==='Enter')sendAgent()">
+      <button class="btn btn-primary" onclick="sendAgent()">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleAgent(){
+  var panel=document.getElementById('agentPanel');
+  var body=document.getElementById('agentBody');
+  var icon=document.getElementById('agentToggleIcon');
+  if(panel.classList.contains('closed')){
+    panel.classList.remove('closed');panel.classList.add('open');
+    body.style.display='flex'; icon.innerHTML='&#9660;';
+    document.getElementById('agentStatus').textContent='Ready';
+    document.getElementById('agentInput').focus();
+  } else {
+    panel.classList.remove('open');panel.classList.add('closed');
+    body.style.display='none'; icon.innerHTML='&#9650;';
+  }
+}
+
+async function sendAgent(){
+  var input=document.getElementById('agentInput');
+  var task=input.value.trim();
+  if(!task)return;
+  var log=document.getElementById('agentLog');
+
+  log.innerHTML+='<div class="msg-user"><b>You:</b> '+esc(task)+'</div>';
+  log.innerHTML+='<div class="agent-thinking" id="agentThinking">Agent thinking...</div>';
+  log.scrollTop=log.scrollHeight;
+  input.value='';
+
+  document.getElementById('agentStatus').textContent='Running...';
+
+  var resp=await fetch('/api/agent',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({task:task})
+  });
+  var result=await resp.json();
+
+  var thinking=document.getElementById('agentThinking');
+  if(thinking)thinking.remove();
+
+  if(result.error){
+    log.innerHTML+='<div class="msg-err">Error: '+esc(result.error)+'</div>';
+    document.getElementById('agentStatus').textContent='Error';
+  } else {
+    // Show tool calls
+    if(result.calls&&result.calls.length){
+      result.calls.forEach(function(c){
+        if(c.error){
+          log.innerHTML+='<div class="msg-tool">&#8594; '+esc(c.name)+' <span style="color:var(--red)">failed: '+esc(c.error)+'</span></div>';
+        } else {
+          log.innerHTML+='<div class="msg-tool">&#8594; '+esc(c.name)+' <span style="color:var(--green)">done</span></div>';
+        }
+      });
+    }
+    // Show final response
+    log.innerHTML+='<div class="msg-agent"><b>Agent:</b> '+esc(result.text)+'</div>';
+    document.getElementById('agentStatus').textContent='Done ('+result.turns+' turns)';
+  }
+  log.scrollTop=log.scrollHeight;
+}
+</script>

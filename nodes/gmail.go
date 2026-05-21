@@ -41,7 +41,7 @@ func (g *Gmail) Schema() orchkit.Schema {
 			"body":    map[string]any{"type": "string", "desc": "Email body text (send)."},
 			"id":      map[string]any{"type": "string", "desc": "Message ID (get)."},
 			"query":   map[string]any{"type": "string", "desc": "Gmail search query (list) e.g. 'is:unread'."},
-			"limit":   map[string]any{"type": "integer", "desc": "Max messages to list. Default 10."},
+			"limit":   map[string]any{"type": "number", "desc": "Max messages to list. Default 10."},
 		},
 	}
 }

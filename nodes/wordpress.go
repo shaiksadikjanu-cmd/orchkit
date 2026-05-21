@@ -40,7 +40,7 @@ func (w *WordPress) Schema() orchkit.Schema {
 			"title":   map[string]any{"type": "string", "desc": "Post title (create, update)."},
 			"content": map[string]any{"type": "string", "desc": "Post content HTML (create, update)."},
 			"status":  map[string]any{"type": "string", "desc": "Post status: draft | publish | private. Default draft."},
-			"limit":   map[string]any{"type": "integer", "desc": "Max posts to list. Default 10."},
+			"limit":   map[string]any{"type": "number", "desc": "Max posts to list. Default 10."},
 		},
 	}
 }

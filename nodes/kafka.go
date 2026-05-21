@@ -40,7 +40,7 @@ func (k *Kafka) Schema() orchkit.Schema {
 			"topic":    map[string]any{"type": "string", "desc": "Kafka topic. Falls back to constructor."},
 			"message":  map[string]any{"type": "string", "desc": "Message value to produce."},
 			"key":      map[string]any{"type": "string", "desc": "Message key (produce)."},
-			"limit":    map[string]any{"type": "integer", "desc": "Max messages to consume (consume). Default 1."},
+			"limit":    map[string]any{"type": "number", "desc": "Max messages to consume (consume). Default 1."},
 			"group_id": map[string]any{"type": "string", "desc": "Consumer group ID (consume)."},
 		},
 	}

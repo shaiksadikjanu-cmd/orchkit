@@ -49,7 +49,7 @@ func (r *Reddit) Schema() orchkit.Schema {
 			"post_id":   map[string]any{"type": "string", "desc": "Post ID (get_post)."},
 			"title":     map[string]any{"type": "string", "desc": "Post title (submit_post)."},
 			"text":      map[string]any{"type": "string", "desc": "Post text body (submit_post)."},
-			"limit":     map[string]any{"type": "integer", "desc": "Max results. Default 10."},
+			"limit":     map[string]any{"type": "number", "desc": "Max results. Default 10."},
 		},
 	}
 }

@@ -39,7 +39,7 @@ func (s *Stripe) Schema() orchkit.Schema {
 			"action":      map[string]any{"type": "string", "desc": "Stripe action to perform."},
 			"email":       map[string]any{"type": "string", "desc": "Customer email (create_customer)."},
 			"name":        map[string]any{"type": "string", "desc": "Customer name (create_customer)."},
-			"amount":      map[string]any{"type": "integer", "desc": "Amount in smallest currency unit e.g. cents (create_payment_intent)."},
+			"amount":      map[string]any{"type": "number", "desc": "Amount in smallest currency unit e.g. cents (create_payment_intent)."},
 			"currency":    map[string]any{"type": "string", "desc": "3-letter currency code e.g. usd (create_payment_intent)."},
 			"customer_id": map[string]any{"type": "string", "desc": "Stripe customer ID."},
 			"charge_id":   map[string]any{"type": "string", "desc": "Charge ID (create_refund)."},

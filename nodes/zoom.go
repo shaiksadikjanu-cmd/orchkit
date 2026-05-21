@@ -37,7 +37,7 @@ func (z *Zoom) Schema() orchkit.Schema {
 			"action":    map[string]any{"type": "string", "desc": "create_meeting | list_meetings | get_meeting | delete_meeting"},
 			"topic":     map[string]any{"type": "string", "desc": "Meeting topic (create_meeting)."},
 			"start":     map[string]any{"type": "string", "desc": "Start time ISO8601 e.g. 2026-05-21T10:00:00Z (create_meeting)."},
-			"duration":  map[string]any{"type": "integer", "desc": "Duration in minutes. Default 60."},
+			"duration":  map[string]any{"type": "number", "desc": "Duration in minutes. Default 60."},
 			"meeting_id": map[string]any{"type": "string", "desc": "Meeting ID (get_meeting, delete_meeting)."},
 		},
 	}

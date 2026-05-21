@@ -39,7 +39,7 @@ func (t *Todoist) Schema() orchkit.Schema {
 			"project_id": map[string]any{"type": "string", "desc": "Project ID (list_tasks, create_task)."},
 			"content":    map[string]any{"type": "string", "desc": "Task title/content (create_task, update_task)."},
 			"due_string": map[string]any{"type": "string", "desc": "Natural language due date e.g. 'tomorrow', 'next Monday'."},
-			"priority":   map[string]any{"type": "integer", "desc": "Priority 1(normal) to 4(urgent)."},
+			"priority":   map[string]any{"type": "number", "desc": "Priority 1(normal) to 4(urgent)."},
 		},
 	}
 }
