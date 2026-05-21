@@ -382,7 +382,7 @@ async function runFlow(){
   }
   document.getElementById('runStatus').textContent='Complete';
   document.getElementById('runStatus').style.color='var(--green)';
-  var out='';
+  var out="";
   ordered.forEach(function(n){
     var s=result.state&&result.state[n.stepId];
     var el=document.getElementById('status_'+n.id);
@@ -463,3 +463,54 @@ boot();
 </script>
 </body>
 </html>
+<script>
+// Patch runFlow to use new per-step results
+var _origRun = window.runFlow;
+window.runFlow = async function() {
+  if(!canvasNodes.length){toast('Add some nodes first');return;}
+  var ordered=getOrdered();
+  var steps=ordered.map(function(n){
+    var inp={};
+    Object.entries(n.inputs).forEach(function(e){if(e[1]!=='')inp[e[0]]=e[1];});
+    return {id:n.stepId,node:n.nodeType,input:inp};
+  });
+  var name=document.getElementById('flowName').value||'my-flow';
+  document.getElementById('runStatus').textContent='Running...';
+  document.getElementById('runStatus').style.color='var(--yellow)';
+  document.getElementById('outputBody').innerHTML='<pre style="color:var(--text3)">Running...</pre>';
+  ordered.forEach(function(n){var el=document.getElementById('status_'+n.id);if(el)el.innerHTML='<span style="color:var(--yellow)">running</span>';});
+
+  var resp=await fetch('/api/run',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({steps:steps,name:name})});
+  var result=await resp.json();
+
+  if(result.error&&!result.results){
+    document.getElementById('runStatus').textContent='Failed';
+    document.getElementById('runStatus').style.color='var(--red)';
+    document.getElementById('outputBody').innerHTML='<span style="color:var(--red)">'+esc(result.error)+'</span>';
+    return;
+  }
+
+  var hasError=!!result.error;
+  document.getElementById('runStatus').textContent=hasError?'Failed':'Complete';
+  document.getElementById('runStatus').style.color=hasError?'var(--red)':'var(--green)';
+
+  var out='';
+  var stepResults=result.results||[];
+  ordered.forEach(function(n){
+    var sr=stepResults.find(function(s){return s.id===n.stepId;});
+    var el=document.getElementById('status_'+n.id);
+    if(!sr){if(el)el.innerHTML='<span style="color:var(--text3)">skipped</span>';return;}
+    if(sr.status==='error'){
+      if(el)el.innerHTML='<span style="color:var(--red)">error</span>';
+      out+='<div style="margin-bottom:10px"><div style="color:var(--red);margin-bottom:3px">'+esc(n.stepId)+' — ERROR</div><pre style="color:var(--red)">'+esc(sr.error)+'</pre></div>';
+    } else {
+      if(el)el.innerHTML='<span style="color:var(--green)">done</span>';
+      out+='<div style="margin-bottom:10px"><div style="color:var(--accent2);margin-bottom:3px">'+esc(n.stepId)+'</div><pre>'+esc(JSON.stringify(sr.output,null,2))+'</pre></div>';
+    }
+  });
+  if(result.error){
+    out+='<div style="color:var(--red);margin-top:8px">'+esc(result.error)+'</div>';
+  }
+  document.getElementById('outputBody').innerHTML=out||'<pre>'+esc(JSON.stringify(result.state,null,2))+'</pre>';
+}
+</script>

@@ -21,17 +21,14 @@ var registry *orchkit.Registry
 
 func main() {
 	registry = buildRegistry()
-
 	addr := ":9091"
 	if len(os.Args) > 1 {
 		addr = ":" + os.Args[1]
 	}
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", serveUI)
 	mux.HandleFunc("/api/nodes", apiNodes)
 	mux.HandleFunc("/api/run", apiRun)
-
 	fmt.Printf("orchkit UI: http://localhost%s\n", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
@@ -39,11 +36,9 @@ func main() {
 }
 
 func serveUI(w http.ResponseWriter, r *http.Request) {
-	// Serve from static/ next to the binary, or relative to source.
 	_, file, _, _ := runtime.Caller(0)
 	htmlPath := filepath.Join(filepath.Dir(file), "static", "index.html")
 	if _, err := os.Stat(htmlPath); os.IsNotExist(err) {
-		// Try relative to cwd
 		htmlPath = "cmd/orchkit-ui/static/index.html"
 	}
 	http.ServeFile(w, r, htmlPath)
@@ -96,7 +91,6 @@ func apiNodes(w http.ResponseWriter, r *http.Request) {
 	reg := registry.Build()
 	names := registry.Names()
 	sort.Strings(names)
-
 	var result []NodeInfo
 	for _, name := range names {
 		node := reg[name]
@@ -113,7 +107,6 @@ func apiNodes(w http.ResponseWriter, r *http.Request) {
 			Color:       catColors[cat],
 		})
 	}
-
 	w.Header().Set("content-type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }
@@ -132,40 +125,9 @@ func apiRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", 405)
 		return
 	}
-
 	var req RunRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), 400)
-		return
-	}
-
-	// Build YAML.
-	var sb strings.Builder
-	sb.WriteString("name: " + req.Name + "\nsteps:\n")
-	for _, step := range req.Steps {
-		sb.WriteString("  - id: " + step.ID + "\n    node: " + step.Node + "\n")
-		if len(step.Input) > 0 {
-			sb.WriteString("    input:\n")
-			for k, v := range step.Input {
-				sb.WriteString(fmt.Sprintf("      %s: %q\n", k, fmt.Sprint(v)))
-			}
-		}
-	}
-	yaml := sb.String()
-
-	tmp, err := os.CreateTemp("", "orchkit-*.yaml")
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	defer os.Remove(tmp.Name())
-	tmp.WriteString(yaml)
-	tmp.Close()
-
-	flow, err := orchkit.LoadYAML(tmp.Name())
-	if err != nil {
-		w.Header().Set("content-type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"error": err.Error(), "yaml": yaml})
 		return
 	}
 
@@ -173,62 +135,132 @@ func apiRun(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	store := orchkit.NewMemStore()
 
-	hooks := &orchkit.Hooks{
-		OnStepEnd: func(id string, out orchkit.Output, err error, elapsed time.Duration) {},
+	// Track per-step results for the UI
+	type stepResult struct {
+		ID     string         `json:"id"`
+		Status string         `json:"status"`
+		Output map[string]any `json:"output,omitempty"`
+		Error  string         `json:"error,omitempty"`
+	}
+	var stepResults []stepResult
+
+	// Execute steps one by one — resolve ${step.field} before each step
+	for _, step := range req.Steps {
+		node, ok := reg[step.Node]
+		if !ok {
+			errMsg := fmt.Sprintf("unknown node %q", step.Node)
+			w.Header().Set("content-type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"error":   errMsg,
+				"results": stepResults,
+			})
+			return
+		}
+
+		// Get current state for interpolation
+		state, _ := store.Snapshot(ctx)
+
+		// Resolve ${step.field} in all input values
+		resolvedInput := orchkit.Input{}
+		for k, v := range step.Input {
+			if s, ok := v.(string); ok {
+				resolvedInput[k] = orchkit.InterpolateStep(
+					map[string]any{k: s}, state,
+				)[k]
+			} else {
+				resolvedInput[k] = v
+			}
+		}
+
+		// Also merge state so nodes can read previous outputs
+		for k, v := range state {
+			if _, exists := resolvedInput[k]; !exists {
+				resolvedInput[k] = v
+			}
+		}
+
+		// Execute
+		out, err := node.Execute(ctx, resolvedInput)
+
+		if err != nil {
+			stepResults = append(stepResults, stepResult{
+				ID:     step.ID,
+				Status: "error",
+				Error:  err.Error(),
+			})
+			// Write state and return error
+			state, _ := store.Snapshot(ctx)
+			w.Header().Set("content-type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"error":   fmt.Sprintf("step %q: %v", step.ID, err),
+				"state":   state,
+				"results": stepResults,
+			})
+			return
+		}
+
+		// Save output to store under step ID
+		if out != nil {
+			store.Put(ctx, step.ID, out)
+		}
+
+		stepResults = append(stepResults, stepResult{
+			ID:     step.ID,
+			Status: "success",
+			Output: out,
+		})
 	}
 
-	state, runErr := orchkit.RunYAML(ctx, flow, reg, store, orchkit.RunOptions{Hooks: hooks})
-
+	finalState, _ := store.Snapshot(ctx)
 	w.Header().Set("content-type", "application/json")
-	resp := map[string]any{"state": state, "yaml": yaml}
-	if runErr != nil {
-		resp["error"] = runErr.Error()
-	}
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(map[string]any{
+		"state":   finalState,
+		"results": stepResults,
+	})
 }
 
 func buildRegistry() *orchkit.Registry {
 	r := orchkit.NewRegistry()
-	r.Register("http_get",  func() orchkit.Node { return nodes.NewHTTPGet("") })
-	r.Register("http_post", func() orchkit.Node { return nodes.NewHTTPPost("") })
-	r.Register("webhook",   func() orchkit.Node { return nodes.NewWebhook(":8080", "/hook", 0) })
-	r.Register("json_parse",  func() orchkit.Node { return nodes.NewJSONParse("") })
-	r.Register("json_build",  func() orchkit.Node { return nodes.NewJSONBuild() })
-	r.Register("csv_read",    func() orchkit.Node { return nodes.NewCSVRead("") })
-	r.Register("xml",         func() orchkit.Node { return nodes.NewXML("parse") })
-	r.Register("template",    func() orchkit.Node { return nodes.NewTemplate("") })
-	r.Register("markdown",    func() orchkit.Node { return nodes.NewMarkdown() })
-	r.Register("rss",         func() orchkit.Node { return nodes.NewRSS("") })
-	r.Register("sqlite",   func() orchkit.Node { return nodes.NewSQLite("", "") })
-	r.Register("postgres", func() orchkit.Node { return nodes.NewPostgres("", "") })
-	r.Register("mysql",    func() orchkit.Node { return nodes.NewMySQL("", "") })
-	r.Register("mongodb",  func() orchkit.Node { return nodes.NewMongoDB("", "", "") })
-	r.Register("redis",    func() orchkit.Node { return nodes.NewRedis("", "") })
-	r.Register("slack",    func() orchkit.Node { return nodes.NewSlack(os.Getenv("SLACK_TOKEN")) })
-	r.Register("discord",  func() orchkit.Node { return nodes.NewDiscord(os.Getenv("DISCORD_TOKEN")) })
-	r.Register("telegram", func() orchkit.Node { return nodes.NewTelegram(os.Getenv("TELEGRAM_TOKEN"), os.Getenv("TELEGRAM_CHAT_ID")) })
-	r.Register("twilio",   func() orchkit.Node { return nodes.NewTwilio(os.Getenv("TWILIO_ACCOUNT_SID"), os.Getenv("TWILIO_AUTH_TOKEN"), os.Getenv("TWILIO_FROM")) })
-	r.Register("smtp",     func() orchkit.Node { return nodes.NewSMTP(os.Getenv("SMTP_HOST"), 587, os.Getenv("SMTP_USER"), os.Getenv("SMTP_PASS")) })
-	r.Register("whatsapp", func() orchkit.Node { return nodes.NewWhatsApp(os.Getenv("WHATSAPP_TOKEN"), os.Getenv("WHATSAPP_PHONE_ID")) })
-	r.Register("twitter",  func() orchkit.Node { return nodes.NewTwitter(os.Getenv("TWITTER_BEARER_TOKEN")) })
-	r.Register("s3",       func() orchkit.Node { return nodes.NewS3(os.Getenv("AWS_REGION"), os.Getenv("AWS_ACCESS_KEY"), os.Getenv("AWS_SECRET_KEY"), os.Getenv("S3_BUCKET")) })
-	r.Register("kafka",    func() orchkit.Node { return nodes.NewKafka([]string{os.Getenv("KAFKA_BROKER")}, "") })
-	r.Register("dropbox",  func() orchkit.Node { return nodes.NewDropbox(os.Getenv("DROPBOX_TOKEN")) })
-	r.Register("jwt",      func() orchkit.Node { return nodes.NewJWT(os.Getenv("JWT_SECRET")) })
-	r.Register("ssh",      func() orchkit.Node { return nodes.NewSSH(os.Getenv("SSH_ADDRESS"), os.Getenv("SSH_PASSWORD"), os.Getenv("SSH_KEY_PATH")) })
-	r.Register("github",   func() orchkit.Node { return nodes.NewGitHub(os.Getenv("GITHUB_TOKEN")) })
-	r.Register("gitlab",   func() orchkit.Node { return nodes.NewGitLab(os.Getenv("GITLAB_TOKEN"), "") })
-	r.Register("jira",     func() orchkit.Node { return nodes.NewJira(os.Getenv("JIRA_DOMAIN"), os.Getenv("JIRA_EMAIL"), os.Getenv("JIRA_TOKEN")) })
-	r.Register("linear",   func() orchkit.Node { return nodes.NewLinear(os.Getenv("LINEAR_API_KEY")) })
-	r.Register("circleci", func() orchkit.Node { return nodes.NewCircleCI(os.Getenv("CIRCLECI_TOKEN")) })
-	r.Register("hubspot",    func() orchkit.Node { return nodes.NewHubSpot(os.Getenv("HUBSPOT_TOKEN")) })
-	r.Register("salesforce", func() orchkit.Node { return nodes.NewSalesforce(os.Getenv("SALESFORCE_INSTANCE_URL"), os.Getenv("SALESFORCE_TOKEN")) })
-	r.Register("airtable",   func() orchkit.Node { return nodes.NewAirtable(os.Getenv("AIRTABLE_TOKEN"), os.Getenv("AIRTABLE_BASE_ID"), os.Getenv("AIRTABLE_TABLE")) })
-	r.Register("pipedrive",  func() orchkit.Node { return nodes.NewPipedrive(os.Getenv("PIPEDRIVE_TOKEN")) })
-	r.Register("zendesk",    func() orchkit.Node { return nodes.NewZendesk(os.Getenv("ZENDESK_SUBDOMAIN"), os.Getenv("ZENDESK_EMAIL"), os.Getenv("ZENDESK_TOKEN")) })
-	r.Register("stripe",     func() orchkit.Node { return nodes.NewStripe(os.Getenv("STRIPE_API_KEY")) })
-	r.Register("paypal",     func() orchkit.Node { return nodes.NewPayPal(os.Getenv("PAYPAL_CLIENT_ID"), os.Getenv("PAYPAL_CLIENT_SECRET"), false) })
-	r.Register("reddit",     func() orchkit.Node { return nodes.NewReddit(os.Getenv("REDDIT_CLIENT_ID"), os.Getenv("REDDIT_CLIENT_SECRET"), os.Getenv("REDDIT_USERNAME"), os.Getenv("REDDIT_PASSWORD")) })
+	r.Register("http_get",      func() orchkit.Node { return nodes.NewHTTPGet("") })
+	r.Register("http_post",     func() orchkit.Node { return nodes.NewHTTPPost("") })
+	r.Register("webhook",       func() orchkit.Node { return nodes.NewWebhook(":8080", "/hook", 0) })
+	r.Register("json_parse",    func() orchkit.Node { return nodes.NewJSONParse("") })
+	r.Register("json_build",    func() orchkit.Node { return nodes.NewJSONBuild() })
+	r.Register("csv_read",      func() orchkit.Node { return nodes.NewCSVRead("") })
+	r.Register("xml",           func() orchkit.Node { return nodes.NewXML("parse") })
+	r.Register("template",      func() orchkit.Node { return nodes.NewTemplate("") })
+	r.Register("markdown",      func() orchkit.Node { return nodes.NewMarkdown() })
+	r.Register("rss",           func() orchkit.Node { return nodes.NewRSS("") })
+	r.Register("sqlite",        func() orchkit.Node { return nodes.NewSQLite("", "") })
+	r.Register("postgres",      func() orchkit.Node { return nodes.NewPostgres("", "") })
+	r.Register("mysql",         func() orchkit.Node { return nodes.NewMySQL("", "") })
+	r.Register("mongodb",       func() orchkit.Node { return nodes.NewMongoDB("", "", "") })
+	r.Register("redis",         func() orchkit.Node { return nodes.NewRedis("", "") })
+	r.Register("slack",         func() orchkit.Node { return nodes.NewSlack(os.Getenv("SLACK_TOKEN")) })
+	r.Register("discord",       func() orchkit.Node { return nodes.NewDiscord(os.Getenv("DISCORD_TOKEN")) })
+	r.Register("telegram",      func() orchkit.Node { return nodes.NewTelegram(os.Getenv("TELEGRAM_TOKEN"), os.Getenv("TELEGRAM_CHAT_ID")) })
+	r.Register("twilio",        func() orchkit.Node { return nodes.NewTwilio(os.Getenv("TWILIO_ACCOUNT_SID"), os.Getenv("TWILIO_AUTH_TOKEN"), os.Getenv("TWILIO_FROM")) })
+	r.Register("smtp",          func() orchkit.Node { return nodes.NewSMTP(os.Getenv("SMTP_HOST"), 587, os.Getenv("SMTP_USER"), os.Getenv("SMTP_PASS")) })
+	r.Register("whatsapp",      func() orchkit.Node { return nodes.NewWhatsApp(os.Getenv("WHATSAPP_TOKEN"), os.Getenv("WHATSAPP_PHONE_ID")) })
+	r.Register("twitter",       func() orchkit.Node { return nodes.NewTwitter(os.Getenv("TWITTER_BEARER_TOKEN")) })
+	r.Register("s3",            func() orchkit.Node { return nodes.NewS3(os.Getenv("AWS_REGION"), os.Getenv("AWS_ACCESS_KEY"), os.Getenv("AWS_SECRET_KEY"), os.Getenv("S3_BUCKET")) })
+	r.Register("kafka",         func() orchkit.Node { return nodes.NewKafka([]string{os.Getenv("KAFKA_BROKER")}, "") })
+	r.Register("dropbox",       func() orchkit.Node { return nodes.NewDropbox(os.Getenv("DROPBOX_TOKEN")) })
+	r.Register("jwt",           func() orchkit.Node { return nodes.NewJWT(os.Getenv("JWT_SECRET")) })
+	r.Register("ssh",           func() orchkit.Node { return nodes.NewSSH(os.Getenv("SSH_ADDRESS"), os.Getenv("SSH_PASSWORD"), os.Getenv("SSH_KEY_PATH")) })
+	r.Register("github",        func() orchkit.Node { return nodes.NewGitHub(os.Getenv("GITHUB_TOKEN")) })
+	r.Register("gitlab",        func() orchkit.Node { return nodes.NewGitLab(os.Getenv("GITLAB_TOKEN"), "") })
+	r.Register("jira",          func() orchkit.Node { return nodes.NewJira(os.Getenv("JIRA_DOMAIN"), os.Getenv("JIRA_EMAIL"), os.Getenv("JIRA_TOKEN")) })
+	r.Register("linear",        func() orchkit.Node { return nodes.NewLinear(os.Getenv("LINEAR_API_KEY")) })
+	r.Register("circleci",      func() orchkit.Node { return nodes.NewCircleCI(os.Getenv("CIRCLECI_TOKEN")) })
+	r.Register("hubspot",       func() orchkit.Node { return nodes.NewHubSpot(os.Getenv("HUBSPOT_TOKEN")) })
+	r.Register("salesforce",    func() orchkit.Node { return nodes.NewSalesforce(os.Getenv("SALESFORCE_INSTANCE_URL"), os.Getenv("SALESFORCE_TOKEN")) })
+	r.Register("airtable",      func() orchkit.Node { return nodes.NewAirtable(os.Getenv("AIRTABLE_TOKEN"), os.Getenv("AIRTABLE_BASE_ID"), os.Getenv("AIRTABLE_TABLE")) })
+	r.Register("pipedrive",     func() orchkit.Node { return nodes.NewPipedrive(os.Getenv("PIPEDRIVE_TOKEN")) })
+	r.Register("zendesk",       func() orchkit.Node { return nodes.NewZendesk(os.Getenv("ZENDESK_SUBDOMAIN"), os.Getenv("ZENDESK_EMAIL"), os.Getenv("ZENDESK_TOKEN")) })
+	r.Register("stripe",        func() orchkit.Node { return nodes.NewStripe(os.Getenv("STRIPE_API_KEY")) })
+	r.Register("paypal",        func() orchkit.Node { return nodes.NewPayPal(os.Getenv("PAYPAL_CLIENT_ID"), os.Getenv("PAYPAL_CLIENT_SECRET"), false) })
+	r.Register("reddit",        func() orchkit.Node { return nodes.NewReddit(os.Getenv("REDDIT_CLIENT_ID"), os.Getenv("REDDIT_CLIENT_SECRET"), os.Getenv("REDDIT_USERNAME"), os.Getenv("REDDIT_PASSWORD")) })
 	r.Register("google_sheets", func() orchkit.Node { return nodes.NewGoogleSheets(os.Getenv("GOOGLE_TOKEN"), os.Getenv("GOOGLE_SPREADSHEET_ID")) })
 	r.Register("gmail",         func() orchkit.Node { return nodes.NewGmail(os.Getenv("GOOGLE_TOKEN")) })
 	r.Register("notion",        func() orchkit.Node { return nodes.NewNotion(os.Getenv("NOTION_TOKEN")) })
@@ -254,3 +286,7 @@ func buildRegistry() *orchkit.Registry {
 	r.Register("fs_write",      func() orchkit.Node { return nodes.NewFSWrite("") })
 	return r
 }
+
+// Keep unused import happy
+var _ = time.Second
+var _ = strings.Contains
