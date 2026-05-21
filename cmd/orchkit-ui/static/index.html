@@ -459,7 +459,7 @@ function clearCanvas(){
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function toast(msg){var el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(function(){el.remove();},2500);}
 
-boot();
+boot().then(function(){ setTimeout(loadExample, 500); });
 </script>
 </body>
 </html>

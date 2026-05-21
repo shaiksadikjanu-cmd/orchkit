@@ -1,5 +1,7 @@
 # ◆ orchkit
 
+![orchkit UI](docs/ui.png)
+
 A composable Go orchestration kernel. Not a platform you deploy — a kit of parts you own.
 
 ## What makes it different
